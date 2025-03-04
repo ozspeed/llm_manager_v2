@@ -1,6 +1,6 @@
 # LLM Model Manager (MVP 1.0)
 
-A web application for managing local LLM models across different frameworks. This tool helps you organize and track your local language models. Version 1.0 provides a stable foundation with core functionality for model management and detection.
+A web application for managing local LLM models across different frameworks. This tool helps you organize and track your local language models. Version 1.0 provides a stable foundation with core functionality for model management and detection, now with an improved modular architecture for better maintainability and extensibility.
 
 ## Features
 
@@ -13,6 +13,7 @@ A web application for managing local LLM models across different frameworks. Thi
 - **Database Management**: Reset database functionality for fresh starts
 - **Error Handling**: Enhanced error handling and user feedback
 - **Responsive UI**: Defensive programming to prevent UI issues
+- **Modular Architecture**: Refactored codebase with clear separation of concerns
 
 ## Setup
 
@@ -41,7 +42,7 @@ The application is configured to use the following path as the default model lib
 /Volumes/Library_Bolt/AI Model Library
 ```
 
-You can change this by modifying the `MODEL_LIBRARY_PATH` variable in `app.py` or by specifying a different path in the web interface.
+You can change this by modifying the `MODEL_LIBRARY_PATH` variable in `config.py` or by specifying a different path in the web interface.
 
 ## Supported Model Formats
 
@@ -73,6 +74,8 @@ When sharded models are detected, they are displayed as a single model with the 
 - **UI Stability**: Implemented defensive programming techniques to prevent blank screen issues
 - **Performance Optimization**: Reduced redundant processing during directory scanning
 - **Ollama Integration**: Added support for detecting and displaying Ollama models and their metadata
+- **Modular Codebase**: Refactored monolithic app into a well-organized, maintainable structure
+- **Centralized Configuration**: Moved configuration parameters to a dedicated config module
 
 ## Ollama Model Support
 
@@ -89,6 +92,21 @@ To use this feature:
 2. Check the "Include Ollama models" option when scanning for models
 3. The application will automatically detect any models you've pulled or created with Ollama
 
+## Project Structure
+
+The application has been refactored into a modular structure for better maintainability:
+
+- `app.py`: Main Flask application with routes
+- `config.py`: Central configuration management
+- `models/`
+  - `database.py`: Database operations
+  - `detection.py`: Model file detection and scanning
+  - `ollama.py`: Ollama-specific model management
+- `utils/`
+  - `system.py`: System information and resource monitoring
+- `static/`: Frontend assets
+- `templates/`: HTML templates
+
 ## Roadmap for Future Versions
 
 - Model inference testing
@@ -98,6 +116,7 @@ To use this feature:
 - Enhanced model metadata extraction
 - Export/import functionality
 - Ollama model management (pull, create, delete)
+- Additional model format support
 
 ## License
 
