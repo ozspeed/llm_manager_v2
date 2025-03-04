@@ -226,29 +226,17 @@ def scan_ollama_models(repositories=None):
                 )
                 print(f"Add model result: {result}, status code: {status_code}")
                 
-                # Only add to results if it was added successfully
-                if status_code == 201:
-                    added_models.append({
-                        "name": display_name,  # Use the human-readable display name
-                        "original_name": model_name,  # Keep the original name for reference
-                        "framework": "ollama",
-                        "path": ollama_path,
-                        "size_mb": size_mb,
-                        "ollama_id": model_id,
-                        "metadata": metadata
-                    })
-                elif status_code == 400 and "already exists" in str(result.get("error", "")):
-                    # Model already exists, but we'll include it in the response anyway
-                    added_models.append({
-                        "name": display_name,  # Use the human-readable display name
-                        "original_name": model_name,  # Keep the original name for reference
-                        "framework": "ollama",
-                        "path": ollama_path,
-                        "size_mb": size_mb,
-                        "ollama_id": model_id,
-                        "metadata": metadata,
-                        "already_exists": True
-                    })
+                # Add to results regardless of whether it was added successfully or already exists
+                added_models.append({
+                    "name": display_name,  # Use the human-readable display name
+                    "original_name": model_name,  # Keep the original name for reference
+                    "framework": "ollama",
+                    "path": ollama_path,
+                    "size_mb": size_mb,
+                    "ollama_id": model_id,
+                    "metadata": metadata,
+                    "already_exists": status_code == 400 and "already exists" in str(result.get("error", ""))
+                })
         
         print(f"Successfully processed {len(added_models)} Ollama models")
         return {"models": added_models}
