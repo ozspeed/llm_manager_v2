@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Model Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+</head>
+<body>
+    <div class="container py-4">
+        <header class="pb-3 mb-4 border-bottom">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold">LLM Model Manager</h1>
+                    <p class="lead">Manage your local LLM models across different frameworks</p>
+                </div>
+                <div>
+                    <span class="badge bg-success" id="version-badge">Loading...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- System Info -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">System Resources</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="system-info">Loading system information...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">Add New Model</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="add-model-form">
+                            <div class="mb-3">
+                                <label for="model-name" class="form-label">Model Name</label>
+                                <input type="text" class="form-control" id="model-name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="model-framework" class="form-label">Framework</label>
+                                <select class="form-select" id="model-framework" required>
+                                    <option value="llama.cpp">llama.cpp</option>
+                                    <option value="transformers">Transformers</option>
+                                    <option value="onnx">ONNX</option>
+                                    <option value="pytorch">PyTorch</option>
+                                    <option value="unknown">Other</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="model-path" class="form-label">Model Path</label>
+                                <input type="text" class="form-control" id="model-path" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Add Model</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Scan Library</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Scan the model library to automatically add models.</p>
+                        <div class="mb-3">
+                            <label for="library-path" class="form-label">Library Path</label>
+                            <input type="text" class="form-control" id="library-path" value="/Volumes/Library_Bolt/AI Model Library">
+                        </div>
+                        <button id="scan-library-btn" class="btn btn-success">Scan Library</button>
+                        <div id="scan-results" class="mt-3"></div>
+                        <hr class="my-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <button id="reset-db-btn" class="btn btn-danger">Reset Database</button>
+                            <small class="text-muted">This will delete all models from the database</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Models List -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">Installed Models</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="models-container" class="row g-4">Loading models...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Format bytes to human-readable format
+        function formatBytes(bytes, decimals = 2) {
+            if (!bytes || bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        // Update system info
+        async function updateSystemInfo() {
+            try {
+                const infoContainer = document.getElementById('system-info');
+                const versionBadge = document.getElementById('version-badge');
+                
+                if (!infoContainer) {
+                    console.error('System info container not found');
+                    return;
+                }
+                
+                const response = await fetch('/api/system-info');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Update version badge
+                if (versionBadge && data.version) {
+                    versionBadge.textContent = `v${data.version}`;
+                }
+                
+                let html = '<div class="row">';
+                
+                // Memory usage
+                html += `
+                    <div class="col-md-4">
+                        <h6>Memory Usage</h6>
+                        <p>Used: ${formatBytes(data.memory?.used || 0)} / Total: ${formatBytes(data.memory?.total || 0)}</p>
+                    </div>
+                `;
+                
+                // Disk usage
+                html += `
+                    <div class="col-md-4">
+                        <h6>Model Library Disk</h6>
+                        <p>Used: ${formatBytes(data.disk?.used * 1024 * 1024 * 1024 || 0)} / Total: ${formatBytes(data.disk?.total * 1024 * 1024 * 1024 || 0)}</p>
+                        <p>Path: ${data.model_library || 'Not set'}</p>
+                    </div>
+                `;
+                
+                // Database info
+                html += `
+                    <div class="col-md-4">
+                        <h6>Database</h6>
+                        <p>Models: ${data.database?.model_count || 0}</p>
+                        <p>Path: ${data.database?.path || 'Not set'}</p>
+                    </div>
+                `;
+                
+                html += '</div>';
+                
+                infoContainer.innerHTML = html;
+            } catch (error) {
+                console.error('Error fetching system info:', error);
+                const infoContainer = document.getElementById('system-info');
+                if (infoContainer) {
+                    infoContainer.innerHTML = '<div class="alert alert-danger">Error loading system information: ' + error.message + '</div>';
+                }
+                
+                // Update version badge with error
+                const versionBadge = document.getElementById('version-badge');
+                if (versionBadge) {
+                    versionBadge.textContent = 'Error';
+                    versionBadge.classList.remove('bg-success');
+                    versionBadge.classList.add('bg-danger');
+                }
+            }
+        }
+
+        // Load models
+        async function loadModels() {
+            try {
+                const container = document.getElementById('models-container');
+                if (!container) {
+                    console.error('Models container not found');
+                    return;
+                }
+                
+                container.innerHTML = '<div class="col-12"><p class="text-center">Loading models...</p></div>';
+                
+                const response = await fetch('/api/models');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const models = await response.json();
+                
+                if (!models || models.length === 0) {
+                    container.innerHTML = '<div class="col-12"><p class="text-center">No models found</p></div>';
+                    return;
+                }
+                
+                let html = '';
+                
+                for (const model of models) {
+                    try {
+                        const isSharded = model.config && model.config.is_sharded;
+                        const shardCount = isSharded ? model.config.shard_count : 0;
+                        
+                        html += `
+                            <div class="col-md-4 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${model.name || 'Unnamed Model'}</h5>
+                                        <p><span class="badge bg-primary">${model.framework || 'Unknown'}</span></p>
+                                        <p class="small text-truncate" title="${model.path || ''}">
+                                            <strong>Path:</strong> ${model.path || 'N/A'}
+                                        </p>
+                                        <p>
+                                            <strong>Size:</strong> ${formatBytes((model.size_mb || 0) * 1024 * 1024)}
+                                        </p>
+                                        ${isSharded ? 
+                                            `<p class="small text-info">
+                                                <i class="bi bi-layers"></i> Model is made of ${shardCount} shards
+                                            </p>` : ''}
+                                        <p class="small">
+                                            <strong>Last Used:</strong> ${model.last_used ? new Date(model.last_used).toLocaleString() : 'Never'}
+                                        </p>
+                                    </div>
+                                    <div class="card-footer">
+                                        <button class="btn btn-sm btn-danger delete-model" data-id="${model.id}">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } catch (modelError) {
+                        console.error('Error processing model:', modelError, model);
+                        // Skip this model and continue with others
+                    }
+                }
+                
+                if (html) {
+                    container.innerHTML = html;
+                    
+                    // Add event listeners for delete buttons
+                    document.querySelectorAll('.delete-model').forEach(button => {
+                        button.addEventListener('click', () => deleteModel(button.dataset.id));
+                    });
+                } else {
+                    container.innerHTML = '<div class="col-12"><p class="text-center">No valid models found</p></div>';
+                }
+            } catch (error) {
+                console.error('Error loading models:', error);
+                const container = document.getElementById('models-container');
+                if (container) {
+                    container.innerHTML = '<div class="col-12"><div class="alert alert-danger">Error loading models: ' + error.message + '</div></div>';
+                }
+            }
+        }
+
+        // Add model
+        async function addModel(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('model-name').value;
+            const framework = document.getElementById('model-framework').value;
+            const path = document.getElementById('model-path').value;
+            
+            try {
+                const response = await fetch('/api/models', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, framework, path })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Model added successfully');
+                    document.getElementById('add-model-form').reset();
+                    loadModels();
+                    updateSystemInfo();
+                } else {
+                    alert(`Error: ${result.error || 'Failed to add model'}`);
+                }
+            } catch (error) {
+                console.error('Error adding model:', error);
+                alert('Failed to add model');
+            }
+        }
+
+        // Delete model
+        async function deleteModel(id) {
+            if (!confirm('Are you sure you want to delete this model?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/models/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    loadModels();
+                    updateSystemInfo();
+                } else {
+                    const result = await response.json();
+                    alert(`Error: ${result.error || 'Failed to delete model'}`);
+                }
+            } catch (error) {
+                console.error('Error deleting model:', error);
+                alert('Failed to delete model');
+            }
+        }
+
+        // Scan library
+        async function scanLibrary() {
+            const path = document.getElementById('library-path').value;
+            const resultsContainer = document.getElementById('scan-results');
+            
+            resultsContainer.innerHTML = '<div class="alert alert-info">Scanning library...</div>';
+            
+            try {
+                const response = await fetch(`/api/scan?path=${encodeURIComponent(path)}`);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultsContainer.innerHTML = `
+                        <div class="alert alert-success">
+                            Added ${result.added} models
+                        </div>
+                    `;
+                    loadModels();
+                    updateSystemInfo();
+                } else {
+                    resultsContainer.innerHTML = `
+                        <div class="alert alert-danger">
+                            Error: ${result.error || 'Failed to scan library'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error scanning library:', error);
+                resultsContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        Failed to scan library
+                    </div>
+                `;
+            }
+        }
+
+        // Reset database
+        async function resetDatabase() {
+            if (!confirm('Are you sure you want to reset the database? This will delete ALL models.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/reset-database', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    alert('Database reset successful');
+                    loadModels();
+                    updateSystemInfo();
+                } else {
+                    const result = await response.json();
+                    alert(`Error: ${result.error || 'Failed to reset database'}`);
+                }
+            } catch (error) {
+                console.error('Error resetting database:', error);
+                alert('Failed to reset database');
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // Load initial data
+                updateSystemInfo();
+                loadModels();
+                
+                // Set up event listeners
+                const addModelForm = document.getElementById('add-model-form');
+                if (addModelForm) {
+                    addModelForm.addEventListener('submit', addModel);
+                }
+                
+                const scanLibraryBtn = document.getElementById('scan-library-btn');
+                if (scanLibraryBtn) {
+                    scanLibraryBtn.addEventListener('click', scanLibrary);
+                }
+                
+                const resetDbBtn = document.getElementById('reset-db-btn');
+                if (resetDbBtn) {
+                    resetDbBtn.addEventListener('click', resetDatabase);
+                }
+                
+                // Update system info periodically
+                setInterval(updateSystemInfo, 30000);
+                
+                console.log('Initialization complete');
+            } catch (error) {
+                console.error('Error during initialization:', error);
+                document.body.innerHTML = `
+                    <div class="container mt-5">
+                        <div class="alert alert-danger">
+                            <h4>Error Loading Application</h4>
+                            <p>${error.message}</p>
+                            <p>Please try refreshing the page. If the problem persists, check the browser console for more details.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
