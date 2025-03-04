@@ -136,7 +136,12 @@
                                     <h6>General Settings</h6>
                                     <div class="mb-3">
                                         <label for="model-library-path" class="form-label">Model Library Path</label>
-                                        <input type="text" class="form-control" id="model-library-path">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="model-library-path">
+                                            <button class="btn btn-outline-secondary" type="button" id="browse-library-btn" data-bs-toggle="modal" data-bs-target="#directory-browser-modal">
+                                                <i class="bi bi-folder2-open"></i> Browse
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="mb-3">
                                         <label for="server-port" class="form-label">Server Port</label>
@@ -183,6 +188,32 @@
                     <div class="card-body">
                         <div id="models-container" class="row g-4"></div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Directory Browser Modal -->
+    <div class="modal fade" id="directory-browser-modal" tabindex="-1" aria-labelledby="directory-browser-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="directory-browser-modal-label">Select Model Library Directory</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb" id="directory-breadcrumb">
+                            <li class="breadcrumb-item"><a href="#" data-path="/">Root</a></li>
+                        </ol>
+                    </nav>
+                    <div class="list-group" id="directory-list">
+                        <!-- Directories will be listed here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="select-directory-btn" data-bs-dismiss="modal">Select Current Directory</button>
                 </div>
             </div>
         </div>
@@ -497,6 +528,87 @@
             }
         }
         
+        // Browse directories for the directory selector
+        let currentBrowsePath = '/';
+        
+        async function browseDirectory(path) {
+            try {
+                currentBrowsePath = path;
+                const response = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+                
+                // Update breadcrumb
+                updateBreadcrumb(data.current_path);
+                
+                // Update directory list
+                const directoryList = document.getElementById('directory-list');
+                directoryList.innerHTML = '';
+                
+                // Add parent directory if available
+                if (data.parent_dir) {
+                    directoryList.innerHTML += `
+                        <a href="#" class="list-group-item list-group-item-action" data-path="${data.parent_dir}">
+                            <i class="bi bi-arrow-up-circle"></i> ..
+                        </a>
+                    `;
+                }
+                
+                // Add directories
+                data.directories.forEach(dir => {
+                    directoryList.innerHTML += `
+                        <a href="#" class="list-group-item list-group-item-action" data-path="${dir.path}">
+                            <i class="bi bi-folder"></i> ${dir.name}
+                        </a>
+                    `;
+                });
+                
+                // Add event listeners to directory items
+                document.querySelectorAll('#directory-list a').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        browseDirectory(item.dataset.path);
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Error browsing directories:', error);
+            }
+        }
+        
+        function updateBreadcrumb(path) {
+            const breadcrumb = document.getElementById('directory-breadcrumb');
+            breadcrumb.innerHTML = '<li class="breadcrumb-item"><a href="#" data-path="/">Root</a></li>';
+            
+            if (path === '/') return;
+            
+            const parts = path.split('/');
+            let currentPath = '';
+            
+            parts.forEach((part, index) => {
+                if (!part) return; // Skip empty parts
+                
+                currentPath += '/' + part;
+                
+                if (index === parts.length - 1) {
+                    breadcrumb.innerHTML += `
+                        <li class="breadcrumb-item active" aria-current="page">${part}</li>
+                    `;
+                } else {
+                    breadcrumb.innerHTML += `
+                        <li class="breadcrumb-item"><a href="#" data-path="${currentPath}">${part}</a></li>
+                    `;
+                }
+            });
+            
+            // Add event listeners to breadcrumb items
+            document.querySelectorAll('#directory-breadcrumb a').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    browseDirectory(item.dataset.path);
+                });
+            });
+        }
+        
         // Save settings to server
         async function saveSettings() {
             try {
@@ -556,6 +668,17 @@
             document.getElementById('search-models').addEventListener('input', loadModels);
             document.getElementById('reset-db-btn').addEventListener('click', resetDatabase);
             document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+            
+            // Directory browser event listeners
+            document.getElementById('browse-library-btn').addEventListener('click', () => {
+                // Start browsing from current path or root
+                const currentPath = document.getElementById('model-library-path').value || '/';
+                browseDirectory(currentPath);
+            });
+            
+            document.getElementById('select-directory-btn').addEventListener('click', () => {
+                document.getElementById('model-library-path').value = currentBrowsePath;
+            });
             
             // Update system info periodically
             setInterval(updateSystemInfo, 30000);

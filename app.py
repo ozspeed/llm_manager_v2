@@ -15,6 +15,7 @@ from models.database import init_db, get_all_models, add_model, delete_model, re
 from models.detection import scan_directory
 from models.ollama import scan_ollama_models
 from utils.system import get_system_info
+from utils.file_browser import browse_directories
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static')
@@ -95,6 +96,13 @@ def reset_db():
 def get_config():
     """Get the current configuration."""
     return jsonify(config.config)
+
+# API endpoint to browse directories
+@app.route('/api/browse', methods=['GET'])
+def browse_dir():
+    """Browse directories for the directory selector."""
+    path = request.args.get('path', '/')
+    return browse_directories(path)
 
 # API endpoint to update configuration
 @app.route('/api/config', methods=['POST'])
