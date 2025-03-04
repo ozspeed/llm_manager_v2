@@ -263,20 +263,20 @@ def scan_directory(directory_path):
                     
                     # Add sharded model to database with special config
                     print(f"DEBUG: Creating sharded model with friendly name: {friendly_name}")
-                    config = {
+                    shard_config = {
                         "is_sharded": True,
                         "shard_count": shard_count,
                         "shard_pattern": file,
                         "shard_extension": file_ext
                     }
-                    print(f"DEBUG: Sharded model config: {config}")
+                    print(f"DEBUG: Sharded model config: {shard_config}")
                     
                     print(f"DEBUG: Adding sharded model to database: {friendly_name}")
                     result, status_code = add_model(
                         friendly_name, 
                         framework, 
                         virtual_path,
-                        config=config,
+                        config=shard_config,
                         size_override=total_size_mb
                     )
                     print(f"DEBUG: Add sharded model result: {result}, status code: {status_code}")
