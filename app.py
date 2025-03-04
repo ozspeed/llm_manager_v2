@@ -4,14 +4,16 @@ import os
 import json
 import psutil
 import re
+import subprocess
 from pathlib import Path
 import sqlite3
 from datetime import datetime
 
 # Configuration
 APP_VERSION = "1.0.0"  # MVP 1.0
-MODEL_LIBRARY_PATH = "/Volumes/Library_Bolt/AI Model Library"
-DATABASE_PATH = "models.db"
+# Default paths - can be overridden by environment variables
+MODEL_LIBRARY_PATH = os.environ.get('MODEL_LIBRARY_PATH', "/Volumes/Library_Bolt/AI Model Library")
+DATABASE_PATH = os.environ.get('DATABASE_PATH', "models.db")
 MODEL_EXTENSIONS = ['.gguf', '.ggml', '.bin', '.safetensors', '.onnx', '.pt', '.pth']
 
 # Initialize Flask app
@@ -53,6 +55,8 @@ def detect_framework(file_path):
         return "onnx"
     elif path_str.endswith('.pt') or path_str.endswith('.pth'):
         return "pytorch"
+    elif 'ollama' in path_str and (path_str.endswith('manifest') or '/manifests/' in path_str):
+        return "ollama"
     else:
         return "unknown"
 
@@ -77,12 +81,22 @@ def get_all_models():
 def add_model(name, framework, path, config=None, size_override=None):
     """Add a model to the database"""
     try:
-        file_path = Path(path)
-        if not file_path.exists():
-            return {"error": f"File does not exist: {path}"}, 400
-            
-        # Use provided size or calculate from file
-        size_mb = size_override if size_override is not None else file_path.stat().st_size / (1024 * 1024)
+        # Handle virtual paths for Ollama models
+        is_ollama_path = path.startswith('ollama://')
+        
+        if is_ollama_path:
+            if size_override is None:
+                return {"error": "Size must be provided for Ollama models"}, 400
+            size_mb = size_override
+            file_path = path  # Use the original path string for Ollama models
+        else:
+            # Regular file path validation
+            file_path = Path(path)
+            if not file_path.exists():
+                return {"error": f"File does not exist: {path}"}, 400
+                
+            # Use provided size or calculate from file
+            size_mb = size_override if size_override is not None else file_path.stat().st_size / (1024 * 1024)
         
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
@@ -119,7 +133,7 @@ def add_model(name, framework, path, config=None, size_override=None):
                 return {"error": f"Model already exists with name: {name}"}, 400
         else:
             # Check if model already exists with the same path
-            cursor.execute("SELECT id FROM models WHERE path = ?", (str(file_path),))
+            cursor.execute("SELECT id FROM models WHERE path = ?", (path,))
             if cursor.fetchone():
                 conn.close()
                 return {"error": f"Model already exists: {path}"}, 400
@@ -361,7 +375,21 @@ def remove_model(model_id):
 @app.route('/api/scan', methods=['GET'])
 def scan_models():
     path = request.args.get('path', MODEL_LIBRARY_PATH)
+    include_ollama = request.args.get('include_ollama', 'true').lower() == 'true'
+    
+    # Scan filesystem models
     result, status_code = scan_directory(path)
+    
+    # Scan Ollama models if requested
+    if include_ollama:
+        ollama_result = scan_ollama_models()
+        
+        # Update the result with Ollama models
+        if status_code == 200 and ollama_result and 'models' in ollama_result:
+            result['added'] += len(ollama_result['models'])
+            result['models'].extend(ollama_result['models'])
+            result['ollama_models_found'] = len(ollama_result['models'])
+    
     return jsonify(result), status_code
 
 @app.route('/api/system-info', methods=['GET'])
@@ -374,10 +402,11 @@ def system_info():
     
     # Model library disk info
     library_disk = None
-    if os.path.exists(MODEL_LIBRARY_PATH):
+    if MODEL_LIBRARY_PATH and os.path.exists(MODEL_LIBRARY_PATH):
         try:
             library_disk = psutil.disk_usage(MODEL_LIBRARY_PATH)._asdict()
-        except:
+        except Exception as e:
+            print(f"Error getting disk usage for {MODEL_LIBRARY_PATH}: {e}")
             pass
     
     # Get total size of all models
@@ -408,6 +437,216 @@ def reset_database():
         return jsonify({"message": "Database reset successful"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+def parse_ollama_modelfile(modelfile_content):
+    """Parse Ollama Modelfile content to extract metadata"""
+    metadata = {
+        "parameters": {},
+        "system_prompt": None,
+        "template": None,
+        "license": None,
+        "from_model": None,
+        "display_name": None  # Added for human-readable name
+    }
+    
+    lines = modelfile_content.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+            
+        # Extract FROM directive
+        if line.startswith('FROM '):
+            metadata['from_model'] = line[5:].strip()
+        
+        # Extract PARAMETER directives
+        elif line.startswith('PARAMETER '):
+            parts = line[10:].strip().split(' ', 1)
+            if len(parts) == 2:
+                param_name, param_value = parts
+                try:
+                    # Try to convert to appropriate type
+                    if param_value.replace('.', '', 1).isdigit():
+                        if '.' in param_value:
+                            param_value = float(param_value)
+                        else:
+                            param_value = int(param_value)
+                    # Remove quotes if present
+                    elif param_value.startswith('"') and param_value.endswith('"'):
+                        param_value = param_value[1:-1]
+                except ValueError:
+                    pass  # Keep as string if conversion fails
+                    
+                metadata['parameters'][param_name] = param_value
+        
+        # Extract SYSTEM prompt
+        elif line.startswith('SYSTEM '):
+            metadata['system_prompt'] = line[7:].strip()
+            # Remove quotes if present
+            if metadata['system_prompt'].startswith('"') and metadata['system_prompt'].endswith('"'):
+                metadata['system_prompt'] = metadata['system_prompt'][1:-1]
+                
+        # Extract TEMPLATE
+        elif line.startswith('TEMPLATE '):
+            # Templates can be multi-line, just capture the first line for now
+            template_start = line[9:].strip()
+            metadata['template'] = template_start
+            
+        # Extract LICENSE
+        elif line.startswith('LICENSE '):
+            # License can be multi-line, just capture the first line for now
+            license_start = line[8:].strip()
+            metadata['license'] = license_start
+    
+    return metadata
+
+def scan_ollama_models():
+    """Scan for Ollama models and add them to the database"""
+    try:
+        print("\n==== Starting Ollama model scan ====")
+        # Check if Ollama is installed
+        try:
+            result = subprocess.run(['which', 'ollama'], capture_output=True, text=True, check=False)
+            print(f"Ollama check result: {result.stdout.strip()}")
+            if result.returncode != 0:
+                print("Ollama not found in PATH")
+                return {"models": [], "error": "Ollama not installed"}
+        except Exception as e:
+            print(f"Error checking for Ollama: {e}")
+            return {"models": [], "error": f"Error checking for Ollama: {e}"}
+        
+        # Get list of Ollama models
+        try:
+            print("Running 'ollama list' command...")
+            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, check=False)
+            if result.returncode != 0:
+                print(f"Error running 'ollama list': {result.stderr}")
+                return {"models": [], "error": f"Error running 'ollama list': {result.stderr}"}
+                
+            output = result.stdout
+            print(f"Ollama list output:\n{output}")
+        except Exception as e:
+            print(f"Error running Ollama command: {e}")
+            return {"models": [], "error": f"Error running Ollama command: {e}"}
+        
+        # Parse the output to get model names
+        lines = output.strip().split('\n')
+        print(f"Found {len(lines)} lines in Ollama output")
+        if len(lines) <= 1:  # Only header or empty
+            print("No Ollama models found (only header line)")
+            return {"models": []}
+            
+        added_models = []
+        
+        # Skip header line
+        for line in lines[1:]:
+            parts = line.split()
+            if len(parts) >= 3:  # NAME ID SIZE ...
+                model_name = parts[0].strip()  # This is the model name with tag (e.g., 'deepseek-r1:70b')
+                model_id = parts[1].strip()  # This is the hash ID
+                
+                # Extract size in MB
+                size_str = parts[2].strip()
+                size_mb = 0
+                
+                if size_str.endswith('GB'):
+                    size_mb = float(size_str[:-2]) * 1024  # Convert GB to MB
+                elif size_str.endswith('MB'):
+                    size_mb = float(size_str[:-2])
+                
+                # Get model details using ollama show
+                try:
+                    print(f"Getting modelfile for {model_name}...")
+                    modelfile_result = subprocess.run(
+                        ['ollama', 'show', '--modelfile', model_name], 
+                        capture_output=True, 
+                        text=True, 
+                        check=False
+                    )
+                    
+                    if modelfile_result.returncode == 0:
+                        modelfile_content = modelfile_result.stdout
+                        print(f"Got modelfile for {model_name}, parsing...")
+                        metadata = parse_ollama_modelfile(modelfile_content)
+                        print(f"Parsed metadata: {metadata}")
+                    else:
+                        metadata = {}
+                        print(f"Error getting modelfile for {model_name}: {modelfile_result.stderr}")
+                except Exception as e:
+                    metadata = {}
+                    print(f"Error getting modelfile details: {e}")
+                
+                # Create a path for the Ollama model
+                # This is a virtual path since Ollama manages its own storage
+                ollama_path = f"ollama://{model_name}"
+                
+                # Extract a more human-readable display name from the model name
+                # If it has a tag (e.g., 'deepseek-r1:70b'), use that as the display name
+                display_name = model_name
+                if ':' in model_name:
+                    model_parts = model_name.split(':')
+                    base_name = model_parts[0]
+                    tag = model_parts[1]
+                    # Convert to title case for better readability
+                    display_name = f"{base_name.replace('-', ' ').title()} {tag}"
+                else:
+                    # If no tag, just format the name nicely
+                    display_name = model_name.replace('-', ' ').title()
+                
+                # Store the display name in metadata
+                metadata["display_name"] = display_name
+                
+                # Create config with Ollama-specific details
+                config = {
+                    "ollama_id": model_id,
+                    "modelfile": metadata,
+                    "is_ollama": True,
+                    "display_name": display_name
+                }
+                
+                # Add model to database - use the display name instead of the raw model name
+                print(f"Adding model to database: {display_name} (path: {ollama_path})")
+                result, status_code = add_model(
+                    display_name,  # Use the human-readable display name
+                    "ollama", 
+                    ollama_path,
+                    config=config,
+                    size_override=size_mb
+                )
+                print(f"Add model result: {result}, status code: {status_code}")
+                
+                # Only add to results if it was added successfully
+                if status_code == 201:
+                    added_models.append({
+                        "name": display_name,  # Use the human-readable display name
+                        "original_name": model_name,  # Keep the original name for reference
+                        "framework": "ollama",
+                        "path": ollama_path,
+                        "size_mb": size_mb,
+                        "ollama_id": model_id,
+                        "metadata": metadata
+                    })
+                elif status_code == 400 and "already exists" in str(result.get("error", "")):
+                    # Model already exists, but we'll include it in the response anyway
+                    added_models.append({
+                        "name": display_name,  # Use the human-readable display name
+                        "original_name": model_name,  # Keep the original name for reference
+                        "framework": "ollama",
+                        "path": ollama_path,
+                        "size_mb": size_mb,
+                        "ollama_id": model_id,
+                        "metadata": metadata,
+                        "already_exists": True
+                    })
+        
+        print(f"Successfully processed {len(added_models)} Ollama models")
+        return {"models": added_models}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Exception in scan_ollama_models: {e}")
+        return {"models": [], "error": str(e)}
 
 if __name__ == '__main__':
     app.run(debug=True)

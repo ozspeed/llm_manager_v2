@@ -8,7 +8,7 @@ A web application for managing local LLM models across different frameworks. Thi
 - **Auto-Detection**: Automatically detect model frameworks based on file extensions
 - **Library Scanning**: Scan directories to automatically add models
 - **Resource Monitoring**: Track disk and memory usage
-- **Framework Support**: Compatible with llama.cpp, Transformers, PyTorch, ONNX, and others
+- **Framework Support**: Compatible with llama.cpp, Transformers, PyTorch, ONNX, Ollama, and others
 - **Sharded Model Support**: Improved detection and grouping of sharded model files
 - **Database Management**: Reset database functionality for fresh starts
 - **Error Handling**: Enhanced error handling and user feedback
@@ -52,6 +52,7 @@ The application automatically detects the following model formats:
 - `.safetensors` - Transformers models
 - `.onnx` - ONNX models
 - `.pt`, `.pth` - PyTorch models
+- `Ollama` - Models managed by Ollama, including their Modelfile metadata
 
 ## Sharded Model Support
 
@@ -71,6 +72,22 @@ When sharded models are detected, they are displayed as a single model with the 
 - **Database Reset**: Added ability to reset the database from the UI
 - **UI Stability**: Implemented defensive programming techniques to prevent blank screen issues
 - **Performance Optimization**: Reduced redundant processing during directory scanning
+- **Ollama Integration**: Added support for detecting and displaying Ollama models and their metadata
+
+## Ollama Model Support
+
+The application can detect and display models managed by Ollama. For each Ollama model, the following information is extracted:
+
+- Base model (FROM directive in Modelfile)
+- System prompt (SYSTEM directive)
+- Parameters (temperature, context size, etc.)
+- Model size
+
+To use this feature:
+
+1. Make sure Ollama is installed on your system
+2. Check the "Include Ollama models" option when scanning for models
+3. The application will automatically detect any models you've pulled or created with Ollama
 
 ## Roadmap for Future Versions
 
@@ -78,8 +95,9 @@ When sharded models are detected, they are displayed as a single model with the 
 - Advanced filtering and search
 - Backup/restore functionality
 - User authentication
-- Model metadata extraction
+- Enhanced model metadata extraction
 - Export/import functionality
+- Ollama model management (pull, create, delete)
 
 ## License
 
