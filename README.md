@@ -1,15 +1,15 @@
-# LLM Model Manager (MVP 1.0)
+# LLM Model Manager (MVP Refactored)
 
-A web application for managing local LLM models across different frameworks. This tool helps you organize and track your local language models. Version 1.0 provides a stable foundation with core functionality for model management and detection, now with an improved modular architecture for better maintainability and extensibility.
+A web application for managing local LLM models across different frameworks. This tool helps you organize and track your local language models. The MVP Refactored version builds upon the stable foundation of Version 1.0, adding improved shard detection for complex naming patterns and enhanced system resource monitoring, all within a modular architecture for better maintainability and extensibility.
 
 ## Features
 
 - **Model Management**: Add, remove, and track local LLM models
 - **Auto-Detection**: Automatically detect model frameworks based on file extensions
 - **Library Scanning**: Scan directories to automatically add models
-- **Resource Monitoring**: Track disk and memory usage
+- **Resource Monitoring**: Real-time tracking of memory, CPU, and disk usage with improved UI display
 - **Framework Support**: Compatible with llama.cpp, Transformers, PyTorch, ONNX, Ollama, and others
-- **Sharded Model Support**: Improved detection and grouping of sharded model files
+- **Advanced Sharded Model Support**: Enhanced detection and grouping of sharded model files with support for multiple naming conventions (e.g., `-00001-of-00002`, `-1-of-2`, `_0001_of_0003`, `.0001.of.0003`)
 - **Database Management**: Reset database functionality for fresh starts
 - **Error Handling**: Enhanced error handling and user feedback
 - **Responsive UI**: Defensive programming to prevent UI issues
@@ -49,6 +49,22 @@ You can change this by modifying the `MODEL_LIBRARY_PATH` variable in `config.py
 The application automatically detects the following model formats:
 
 - `.gguf`, `.ggml` - llama.cpp models
+
+## Changelog
+
+### MVP Refactored (v1.0-mvp-refactored) - March 4, 2025
+
+- **Enhanced Shard Detection**: Improved regex patterns to detect various shard naming conventions
+- **System Resources UI**: Fixed and enhanced the system resources display in the UI
+- **Code Refactoring**: Modularized the codebase for better maintainability
+- **Logging Improvements**: Added comprehensive debug logging for better troubleshooting
+- **Testing**: Added test scripts for shard detection and directory access
+
+### MVP 1.0 (v1.0.0) - Initial Release
+
+- Basic model management functionality
+- Initial framework detection
+- Simple UI for model management
 - `.bin` - Transformers models (if "pytorch" or "torch" in the filename)
 - `.safetensors` - Transformers models
 - `.onnx` - ONNX models
