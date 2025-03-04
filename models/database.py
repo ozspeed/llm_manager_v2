@@ -53,20 +53,20 @@ def get_all_models():
     except Exception as e:
         return {"error": str(e)}, 500
 
-def add_model(name, framework, path, config=None, size_override=None):
+def add_model(name, framework, path, model_config=None, size_override=None):
     """Add a model to the database."""
     try:
         # Handle virtual paths for Ollama models or sharded models
         is_ollama_path = path.startswith('ollama://')
         
-        # Check if config indicates this is a sharded model
+        # Check if model_config indicates this is a sharded model
         is_sharded = False
-        if config is not None:
-            if isinstance(config, dict):
-                is_sharded = config.get('is_sharded', False)
-            elif isinstance(config, str):
+        if model_config is not None:
+            if isinstance(model_config, dict):
+                is_sharded = model_config.get('is_sharded', False)
+            elif isinstance(model_config, str):
                 try:
-                    config_data = json.loads(config)
+                    config_data = json.loads(model_config)
                     is_sharded = config_data.get('is_sharded', False)
                 except:
                     pass
@@ -94,19 +94,19 @@ def add_model(name, framework, path, config=None, size_override=None):
         conn = sqlite3.connect(config.get_database_path())
         cursor = conn.cursor()
         
-        # Ensure config is a proper JSON string
-        if config is not None:
-            # If config is already a string, try to parse it to validate it's proper JSON
-            if isinstance(config, str):
+        # Ensure model_config is a proper JSON string
+        if model_config is not None:
+            # If model_config is already a string, try to parse it to validate it's proper JSON
+            if isinstance(model_config, str):
                 try:
-                    json.loads(config)  # Just to validate
-                    config_json = config
+                    json.loads(model_config)  # Just to validate
+                    config_json = model_config
                 except json.JSONDecodeError:
                     # If it's not valid JSON, treat it as a regular string
-                    config_json = json.dumps({"raw_config": config})
+                    config_json = json.dumps({"raw_config": model_config})
             else:
                 # If it's a dict or other object, convert to JSON string
-                config_json = json.dumps(config)
+                config_json = json.dumps(model_config)
         else:
             config_json = json.dumps({})
         

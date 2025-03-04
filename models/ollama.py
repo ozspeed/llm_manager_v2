@@ -7,6 +7,7 @@ import subprocess
 import re
 import json
 
+import config
 from models.database import add_model
 
 def parse_ollama_modelfile(modelfile_content):
@@ -206,7 +207,7 @@ def scan_ollama_models(repositories=None):
                 metadata["display_name"] = display_name
                 
                 # Create config with Ollama-specific details
-                config = {
+                model_config = {
                     "ollama_id": model_id,
                     "modelfile": metadata,
                     "is_ollama": True,
@@ -220,7 +221,7 @@ def scan_ollama_models(repositories=None):
                     display_name,  # Use the human-readable display name
                     "ollama", 
                     ollama_path,
-                    config=config,
+                    model_config=model_config,
                     size_override=size_mb
                 )
                 print(f"Add model result: {result}, status code: {status_code}")

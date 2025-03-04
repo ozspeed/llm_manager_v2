@@ -178,9 +178,12 @@ def count_shards(base_name, file_list, extension):
 def scan_directory(directory_path):
     """Scan directory for model files and add them to the database."""
     try:
+        print(f"DEBUG: Starting scan with directory_path = {directory_path}")
         print(f"DEBUG: MODEL_EXTENSIONS = {config.get_model_extensions()}")
         directory = Path(directory_path)
+        print(f"DEBUG: Directory exists: {directory.exists()}, is_dir: {directory.is_dir()}")
         if not directory.exists() or not directory.is_dir():
+            print(f"DEBUG: Directory does not exist or is not a directory: {directory_path}")
             return {"error": f"Directory does not exist: {directory_path}"}, 400
         
         models_added = 0
@@ -190,7 +193,6 @@ def scan_directory(directory_path):
         
         # Walk through the directory and find model files
         print(f"DEBUG: Starting scan of directory: {directory}")
-        print(f"DEBUG: Directory exists: {directory.exists()}, is_dir: {directory.is_dir()}")
         
         # List all top-level directories to verify we're scanning the right place
         print(f"DEBUG: Top-level directories in {directory}:")
@@ -201,9 +203,18 @@ def scan_directory(directory_path):
         except Exception as e:
             print(f"DEBUG: Error listing directory contents: {e}")
             
+        total_files_checked = 0
+        model_extension_files = 0
         for root, dirs, files in os.walk(directory):
             print(f"DEBUG: Scanning directory: {root}")
             print(f"DEBUG: Found {len(dirs)} subdirectories and {len(files)} files")
+            total_files_checked += len(files)
+            
+            # Count files with model extensions
+            model_files = [f for f in files if Path(f).suffix.lower() in config.get_model_extensions()]
+            model_extension_files += len(model_files)
+            if model_files:
+                print(f"DEBUG: Found {len(model_files)} potential model files in {root}: {model_files}")
             
             # Check for any .gguf files with 'of-' in the name
             shard_candidates = [f for f in files if f.endswith('.gguf') and 'of-' in f]
@@ -276,7 +287,7 @@ def scan_directory(directory_path):
                         friendly_name, 
                         framework, 
                         virtual_path,
-                        config=shard_config,
+                        model_config=shard_config,
                         size_override=total_size_mb
                     )
                     print(f"DEBUG: Add sharded model result: {result}, status code: {status_code}")
@@ -342,6 +353,7 @@ def scan_directory(directory_path):
         # Combine newly added and existing models
         all_models = processed_models + existing_models
         
+        print(f"DEBUG: Scan complete. Added: {models_added}, Existing: {len(existing_models)}, Total models: {len(all_models)}")
         return {
             "added": models_added,
             "existing": len(existing_models),
@@ -350,5 +362,6 @@ def scan_directory(directory_path):
         
     except Exception as e:
         import traceback
+        print(f"DEBUG: Exception in scan_directory: {str(e)}")
         traceback.print_exc()
         return {"error": str(e)}, 500
