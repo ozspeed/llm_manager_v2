@@ -29,6 +29,10 @@ init_db()
 def index():
     return render_template('index.html')
 
+@app.route('/settings')
+def settings():
+    return render_template('settings.html')
+
 @app.route('/test')
 def test():
     return render_template('index_new.html')
@@ -120,6 +124,64 @@ def update_config():
         return jsonify({"success": True, "message": "Configuration updated", "config": config.config})
     except Exception as e:
         return jsonify({"error": f"Failed to update configuration: {str(e)}"}), 500
+
+# API endpoint to sync repository with AI Library
+@app.route('/api/sync_repository', methods=['POST'])
+def sync_repository():
+    """Sync repository with AI Library by creating symlinks."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    name = data.get('name')
+    location = data.get('location')
+    
+    if not name or not location:
+        return jsonify({"error": "Repository name and location are required"}), 400
+    
+    try:
+        # Get the model library path
+        model_library_path = config.get_model_library_path()
+        
+        if not model_library_path:
+            return jsonify({"error": "Model library path is not set"}), 400
+        
+        # Import necessary modules
+        import os
+        import shutil
+        from pathlib import Path
+        
+        # Create symlinks from model library to repository location
+        model_count = 0
+        model_extensions = config.get_model_extensions()
+        
+        # Ensure repository directory exists
+        os.makedirs(location, exist_ok=True)
+        
+        # Scan model library for models
+        for ext in model_extensions:
+            for model_file in Path(model_library_path).glob(f'**/*{ext}'):
+                # Create symlink in repository location
+                target_path = os.path.join(location, model_file.name)
+                
+                # Remove existing symlink or file if it exists
+                if os.path.exists(target_path):
+                    if os.path.islink(target_path):
+                        os.unlink(target_path)
+                    else:
+                        continue  # Skip if it's a real file, not a symlink
+                
+                # Create the symlink
+                os.symlink(model_file, target_path)
+                model_count += 1
+        
+        return jsonify({
+            "success": True,
+            "count": model_count,
+            "message": f"Successfully synchronized {model_count} models for {name}"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     import argparse

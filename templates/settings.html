@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Model Manager - Settings</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+        }
+        .sidebar .nav-link {
+            color: #333;
+            border-radius: 0;
+            padding: 0.5rem 1rem;
+        }
+        .sidebar .nav-link.active {
+            background-color: #0d6efd;
+            color: white;
+        }
+        .sidebar .nav-link:hover:not(.active) {
+            background-color: #e9ecef;
+        }
+        .sidebar-heading {
+            padding: 0.875rem 1.25rem;
+            font-size: 1.2rem;
+        }
+        .main-content {
+            padding: 1.5rem;
+        }
+        
+        /* Slider Switch Styles */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin-right: 10px;
+        }
+        
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        .switch-label {
+            display: flex;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 col-lg-2 d-md-block sidebar p-0">
+                <div class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1">
+                    <span>LLM Manager</span>
+                </div>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-2" href="/">
+                            <i class="bi bi-house"></i>
+                            Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active d-flex align-items-center gap-2" href="/settings">
+                            <i class="bi bi-gear"></i>
+                            Settings
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main content -->
+            <div class="col-md-10 col-lg-10 main-content">
+                <h1 class="mb-4">Settings</h1>
+                
+                <!-- Settings Card -->
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Application Settings</h5>
+                        <button id="save-settings-btn" class="btn btn-sm btn-light">
+                            <i class="bi bi-save"></i> Save Settings
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <form id="settings-form">
+                            <div class="mb-3">
+                                <label for="model-library-path" class="form-label">Model Library Path</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="model-library-path" name="model_library_path">
+                                    <button class="btn btn-outline-secondary" type="button" id="browse-btn">
+                                        <i class="bi bi-folder2-open"></i> Browse
+                                    </button>
+                                </div>
+                                <div class="form-text">Directory where your model files are stored</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="model-extensions" class="form-label">Model File Extensions</label>
+                                <input type="text" class="form-control" id="model-extensions" name="model_extensions">
+                                <div class="form-text">Comma-separated list of file extensions to recognize as models</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="app-port" class="form-label">Application Port</label>
+                                <input type="number" class="form-control" id="app-port" name="app_port">
+                                <div class="form-text">Port for the web interface (requires restart)</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="switch-label">
+                                    <label class="switch">
+                                        <input type="checkbox" id="debug-mode" name="debug_mode">
+                                        <span class="slider"></span>
+                                    </label>
+                                    <span>Debug Mode</span>
+                                </div>
+                                <div class="form-text">Enable detailed logging (requires restart)</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="switch-label">
+                                    <label class="switch">
+                                        <input type="checkbox" id="ollama-enabled" name="ollama_enabled">
+                                        <span class="slider"></span>
+                                    </label>
+                                    <span>Enable Ollama Integration</span>
+                                </div>
+                                <div class="form-text">Scan and manage Ollama models</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="ollama-repos" class="form-label">Ollama Repositories</label>
+                                <input type="text" class="form-control" id="ollama-repos" name="ollama_repos">
+                                <div class="form-text">Comma-separated list of Ollama repositories to scan</div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Tool Repositories -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" id="tool-repositories-header">
+                        <h5 class="mb-0">Tool Repositories</h5>
+                        <div>
+                            <button id="use-model-library-btn" class="btn btn-sm btn-outline-light me-2" 
+                                data-bs-toggle="tooltip" title="Set all repositories to use the AI Library">
+                                <i class="bi bi-link"></i> Use Model Library for All
+                            </button>
+                            <button id="add-repository-btn" class="btn btn-sm btn-light me-2">
+                                <i class="bi bi-plus"></i> Add Repository
+                            </button>
+                            <button id="save-repositories-btn" class="btn btn-sm btn-success">
+                                <i class="bi bi-save"></i> Save Repositories
+                            </button>
+                            <span id="repositories-changed-indicator" class="badge bg-warning ms-2" style="display: none;">Unsaved Changes</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p>Configure external tool repositories for model management.</p>
+                        <div id="tool-repositories-container">
+                            <!-- Repository items will be added here dynamically -->
+                        </div>
+                        <template id="repository-template">
+                            <div class="repository-item card mb-3">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <input type="text" class="form-control form-control-sm repository-name" placeholder="Tool Name" style="max-width: 200px;">
+                                    <button class="btn btn-sm btn-danger remove-repository-btn">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <div class="switch-label">
+                                            <label class="switch">
+                                                <input type="checkbox" class="symlink-from-library" id="symlink-from-library-{id}">
+                                                <span class="slider"></span>
+                                            </label>
+                                            <span>Symlink from AI Library?</span>
+                                        </div>
+                                    </div>
+                                    <div class="repository-details">
+                                        <div class="mb-3">
+                                            <label class="form-label">Repository Location</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control repository-location">
+                                                <button class="btn btn-outline-secondary browse-repository-btn">
+                                                    <i class="bi bi-folder2-open"></i> Browse
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <div class="switch-label">
+                                                <label class="switch">
+                                                    <input type="checkbox" class="require-parent-directory" id="require-parent-directory-{id}">
+                                                    <span class="slider"></span>
+                                                </label>
+                                                <span>Individual models require parent directory?</span>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <div class="switch-label">
+                                                <label class="switch">
+                                                    <input type="checkbox" class="understands-shards" id="understands-shards-{id}">
+                                                    <span class="slider"></span>
+                                                </label>
+                                                <span>Understands Shards?</span>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3 sync-button-container" style="display: none;">
+                                            <button class="btn btn-primary sync-now-btn">
+                                                <i class="bi bi-arrow-repeat"></i> Sync Now
+                                            </button>
+                                            <small class="text-muted ms-2">Synchronize your tool with AI Model Library</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- Database Management -->
+                <div class="card mb-4">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0">Database Management</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Reset the database to clear all model information. This cannot be undone.</p>
+                        <button id="reset-db-btn" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Reset Database
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Directory Browser Modal -->
+    <div class="modal fade" id="directory-browser-modal" tabindex="-1" aria-labelledby="directory-browser-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="directory-browser-modal-label">Browse Directories</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb" id="directory-breadcrumb"></ol>
+                    </nav>
+                    <div class="list-group" id="directory-list"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="select-directory-btn">Select Directory</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let directoryBrowserModal;
+        let currentBrowsePath = '/';
+        
+        // Suggest default repository locations based on model library path
+        function suggestDefaultRepositoryLocation(repositoryName, modelLibraryPath) {
+            if (!modelLibraryPath) return '';
+            
+            // Convert repository name to lowercase for path suggestion
+            const repoNameLower = repositoryName.toLowerCase();
+            
+            // Common repository names and their typical folder names
+            const commonRepos = {
+                'ollama': 'ollama',
+                'gpt4all': 'gpt4all',
+                'llama.cpp': 'llama.cpp',
+                'llamacpp': 'llama.cpp',
+                'text-generation-webui': 'text-generation-webui',
+                'oobabooga': 'text-generation-webui',
+                'koboldai': 'koboldai',
+                'kobold': 'koboldai',
+                'exllama': 'exllama',
+                'huggingface': 'huggingface'
+            };
+            
+            // Find a matching repository name
+            let folderName = '';
+            for (const [key, value] of Object.entries(commonRepos)) {
+                if (repoNameLower.includes(key)) {
+                    folderName = value;
+                    break;
+                }
+            }
+            
+            // If no match found, use the repository name as is
+            if (!folderName) {
+                folderName = repoNameLower.replace(/[^a-z0-9-_]/g, '');
+            }
+            
+            // Construct the path
+            return `${modelLibraryPath}/${folderName}`;
+        }
+        
+        // Load settings from server
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                
+                // Populate form fields
+                document.getElementById('model-library-path').value = config.paths.model_library || '';
+                document.getElementById('model-extensions').value = (config.models.extensions || []).join(',');
+                document.getElementById('app-port').value = config.app.port || 8002;
+                document.getElementById('debug-mode').checked = config.app.debug || false;
+                document.getElementById('ollama-enabled').checked = config.frameworks.ollama.enabled || false;
+                document.getElementById('ollama-repos').value = (config.frameworks.ollama.repositories || []).join(',');
+                
+                // Clear existing repositories
+                document.getElementById('tool-repositories-container').innerHTML = '';
+                
+                // Add repositories
+                if (config.tool_repositories && config.tool_repositories.length > 0) {
+                    config.tool_repositories.forEach(repo => {
+                        addRepository(repo);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+                alert('Failed to load settings. Please check the console for details.');
+            }
+        }
+        
+        // Browse directories for the directory selector
+        async function browseDirectory(path) {
+            try {
+                const response = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+                
+                // Update current path
+                currentBrowsePath = path;
+                
+                // Update breadcrumb
+                updateBreadcrumb(path);
+                
+                // Clear directory list
+                const directoryList = document.getElementById('directory-list');
+                directoryList.innerHTML = '';
+                
+                // Add parent directory if not at root
+                if (path !== '/') {
+                    const parentPath = path.split('/').slice(0, -1).join('/') || '/';
+                    const parentItem = document.createElement('a');
+                    parentItem.href = '#';
+                    parentItem.className = 'list-group-item list-group-item-action d-flex align-items-center';
+                    parentItem.innerHTML = `
+                        <i class="bi bi-arrow-up-circle me-2"></i>
+                        <span>Parent Directory</span>
+                    `;
+                    parentItem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        browseDirectory(parentPath);
+                    });
+                    directoryList.appendChild(parentItem);
+                }
+                
+                // Add directories
+                data.directories.forEach(dir => {
+                    const dirItem = document.createElement('a');
+                    dirItem.href = '#';
+                    dirItem.className = 'list-group-item list-group-item-action d-flex align-items-center';
+                    dirItem.innerHTML = `
+                        <i class="bi bi-folder me-2"></i>
+                        <span>${dir.name}</span>
+                    `;
+                    dirItem.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        browseDirectory(dir.path);
+                    });
+                    directoryList.appendChild(dirItem);
+                });
+            } catch (error) {
+                console.error('Error browsing directory:', error);
+                alert('Failed to browse directory. Please check the console for details.');
+            }
+        }
+        
+        // Update breadcrumb for directory browser
+        function updateBreadcrumb(path) {
+            const breadcrumb = document.getElementById('directory-breadcrumb');
+            breadcrumb.innerHTML = '';
+            
+            // Split path into components
+            const components = path === '/' ? ['/'] : ['/', ...path.split('/').filter(p => p)];
+            
+            // Create breadcrumb items
+            components.forEach((component, index) => {
+                const item = document.createElement('li');
+                item.className = 'breadcrumb-item';
+                
+                if (index === components.length - 1) {
+                    // Last item (current directory)
+                    item.className += ' active';
+                    item.textContent = component === '/' ? 'Root' : component;
+                    item.setAttribute('aria-current', 'page');
+                } else {
+                    // Navigable item
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.textContent = component === '/' ? 'Root' : component;
+                    
+                    // Calculate path for this breadcrumb item
+                    const itemPath = index === 0 ? '/' : 
+                        '/' + components.slice(1, index + 1).join('/');
+                    
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        browseDirectory(itemPath);
+                    });
+                    
+                    item.appendChild(link);
+                }
+                
+                breadcrumb.appendChild(item);
+            });
+        }
+        
+        // Tool Repositories functions
+        let repositoryCounter = 0;
+        let repositoriesChanged = false;
+        
+        function markRepositoriesChanged() {
+            repositoriesChanged = true;
+            document.getElementById('repositories-changed-indicator').style.display = 'inline-block';
+            document.getElementById('save-repositories-btn').classList.add('btn-warning');
+            document.getElementById('save-repositories-btn').classList.remove('btn-success');
+        }
+        
+        function markRepositoriesSaved() {
+            repositoriesChanged = false;
+            document.getElementById('repositories-changed-indicator').style.display = 'none';
+            document.getElementById('save-repositories-btn').classList.remove('btn-warning');
+            document.getElementById('save-repositories-btn').classList.add('btn-success');
+        }
+        
+        function addRepository(repository = null) {
+            // Mark as changed if not loading from saved config
+            if (!repository) {
+                markRepositoriesChanged();
+            }
+            const template = document.getElementById('repository-template');
+            const container = document.getElementById('tool-repositories-container');
+            const id = repositoryCounter++;
+            
+            // Clone the template
+            const clone = document.importNode(template.content, true);
+            
+            // Replace {id} placeholders with actual id
+            const html = clone.firstElementChild.outerHTML.replace(/{id}/g, id);
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            const repositoryItem = div.firstElementChild;
+            repositoryItem.dataset.id = id;
+            
+            // Add to container
+            container.appendChild(repositoryItem);
+            
+            // Set values if repository is provided
+            if (repository) {
+                repositoryItem.querySelector('.repository-name').value = repository.name || '';
+                
+                // Handle backward compatibility with old config format
+                // If use_ai_library is true, we'll set symlink_from_library to true
+                const useSymlink = repository.symlink_from_library || repository.use_ai_library || false;
+                
+                repositoryItem.querySelector('.symlink-from-library').checked = useSymlink;
+                repositoryItem.querySelector('.repository-location').value = repository.repository_location || '';
+                repositoryItem.querySelector('.require-parent-directory').checked = repository.require_parent_directory || false;
+                repositoryItem.querySelector('.understands-shards').checked = repository.understands_shards || false;
+                
+                // Show/hide repository details based on symlink_from_library
+                const detailsDiv = repositoryItem.querySelector('.repository-details');
+                detailsDiv.style.display = useSymlink ? 'block' : 'none';
+                
+                // Show/hide sync button based on symlink_from_library
+                const syncButtonContainer = repositoryItem.querySelector('.sync-button-container');
+                if (syncButtonContainer) {
+                    syncButtonContainer.style.display = useSymlink ? 'block' : 'none';
+                }
+            }
+            
+            // Add event listeners
+            const symlinkCheckbox = repositoryItem.querySelector('.symlink-from-library');
+            const detailsDiv = repositoryItem.querySelector('.repository-details');
+            
+            symlinkCheckbox.addEventListener('change', function() {
+                detailsDiv.style.display = this.checked ? 'block' : 'none';
+                const syncButtonContainer = repositoryItem.querySelector('.sync-button-container');
+                if (syncButtonContainer) {
+                    syncButtonContainer.style.display = this.checked ? 'block' : 'none';
+                }
+                markRepositoriesChanged();
+            });
+            
+            // Add event listener for Sync Now button
+            const syncNowBtn = repositoryItem.querySelector('.sync-now-btn');
+            if (syncNowBtn) {
+                syncNowBtn.addEventListener('click', function() {
+                    const repoName = repositoryItem.querySelector('.repository-name').value;
+                    const repoLocation = repositoryItem.querySelector('.repository-location').value;
+                    
+                    if (!repoName || !repoLocation) {
+                        alert('Repository name and location must be set before syncing.');
+                        return;
+                    }
+                    
+                    // Show loading state
+                    const originalText = this.innerHTML;
+                    this.innerHTML = '<i class="bi bi-arrow-repeat"></i> Syncing...';
+                    this.disabled = true;
+                    
+                    // Call the sync API
+                    fetch('/api/sync_repository', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            name: repoName,
+                            location: repoLocation
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // Reset button state
+                        this.innerHTML = originalText;
+                        this.disabled = false;
+                        
+                        if (data.success) {
+                            alert(`Successfully synchronized ${data.count} models for ${repoName}`);
+                        } else {
+                            alert(`Error: ${data.error}`);
+                        }
+                    })
+                    .catch(error => {
+                        // Reset button state
+                        this.innerHTML = originalText;
+                        this.disabled = false;
+                        alert(`Error: ${error.message}`);
+                    });
+                });
+            }
+            
+            repositoryItem.querySelector('.remove-repository-btn').addEventListener('click', function() {
+                repositoryItem.remove();
+                markRepositoriesChanged();
+            });
+            
+            repositoryItem.querySelector('.browse-repository-btn').addEventListener('click', function() {
+                browseDirectory('/');
+                currentRepositoryItem = repositoryItem;
+                directoryBrowserModal.show();
+            });
+            
+            // Add change listeners to all input fields
+            repositoryItem.querySelector('.repository-name').addEventListener('input', markRepositoriesChanged);
+            repositoryItem.querySelector('.symlink-from-library').addEventListener('change', markRepositoriesChanged);
+            repositoryItem.querySelector('.repository-location').addEventListener('input', markRepositoriesChanged);
+            repositoryItem.querySelector('.require-parent-directory').addEventListener('change', markRepositoriesChanged);
+            repositoryItem.querySelector('.understands-shards').addEventListener('change', markRepositoriesChanged);
+            
+            return repositoryItem;
+        }
+        
+        function collectRepositories() {
+            const repositories = [];
+            const items = document.querySelectorAll('.repository-item');
+            
+            items.forEach(item => {
+                const symlinkFromLibrary = item.querySelector('.symlink-from-library').checked;
+                
+                const repository = {
+                    name: item.querySelector('.repository-name').value,
+                    use_ai_library: symlinkFromLibrary, // Keep for backward compatibility
+                    symlink_from_library: symlinkFromLibrary,
+                    repository_location: item.querySelector('.repository-location').value,
+                    require_parent_directory: item.querySelector('.require-parent-directory').checked,
+                    understands_shards: item.querySelector('.understands-shards').checked
+                };
+                
+                repositories.push(repository);
+            });
+            
+            return repositories;
+        }
+        
+        // Save settings to server
+        async function saveSettings() {
+            try {
+                // Get form values
+                const modelLibraryPath = document.getElementById('model-library-path').value;
+                const modelExtensions = document.getElementById('model-extensions').value.split(',').map(ext => ext.trim()).filter(ext => ext);
+                const appPort = parseInt(document.getElementById('app-port').value);
+                const debugMode = document.getElementById('debug-mode').checked;
+                const ollamaEnabled = document.getElementById('ollama-enabled').checked;
+                const ollamaRepos = document.getElementById('ollama-repos').value.split(',').map(repo => repo.trim()).filter(repo => repo);
+                
+                // Collect tool repositories
+                const toolRepositories = collectRepositories();
+                
+                // Create config object with dot notation paths as expected by the API
+                const config = {
+                    'paths.model_library': modelLibraryPath,
+                    'models.extensions': modelExtensions,
+                    'app.port': appPort,
+                    'app.debug': debugMode,
+                    'frameworks.ollama.enabled': ollamaEnabled,
+                    'frameworks.ollama.repositories': ollamaRepos,
+                    'tool_repositories': toolRepositories
+                };
+                
+                // Show saving indicator
+                const saveBtn = document.getElementById('save-settings-btn');
+                const originalText = saveBtn.innerHTML;
+                saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
+                saveBtn.disabled = true;
+                
+                // Send to server
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    saveBtn.innerHTML = '<i class="bi bi-check-circle"></i> Saved!';
+                    setTimeout(() => {
+                        saveBtn.innerHTML = originalText;
+                        saveBtn.disabled = false;
+                    }, 2000);
+                } else {
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.disabled = false;
+                    alert(`Failed to save settings: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                document.getElementById('save-settings-btn').innerHTML = '<i class="bi bi-save"></i> Save Settings';
+                document.getElementById('save-settings-btn').disabled = false;
+                alert('Failed to save settings. Please check the console for details.');
+            }
+        }
+        
+        // Validate repository paths
+        function validateRepositories(repositories) {
+            let hasErrors = false;
+            let errorMessages = [];
+            
+            // Check for duplicate names
+            const names = repositories.map(repo => repo.name);
+            const duplicateNames = names.filter((name, index) => names.indexOf(name) !== index);
+            
+            if (duplicateNames.length > 0) {
+                hasErrors = true;
+                errorMessages.push(`Duplicate repository names found: ${duplicateNames.join(', ')}`);
+            }
+            
+            // Check for empty names
+            const emptyNames = repositories.filter(repo => !repo.name.trim());
+            if (emptyNames.length > 0) {
+                hasErrors = true;
+                errorMessages.push('Repository names cannot be empty');
+            }
+            
+            // Check for repository locations when symlinking from AI library
+            repositories.forEach(repo => {
+                if (repo.symlink_from_library && !repo.repository_location.trim()) {
+                    hasErrors = true;
+                    errorMessages.push(`Repository '${repo.name}' needs a location when symlinked from the AI Library`);
+                }
+            });
+            
+            return { hasErrors, errorMessages };
+        }
+        
+        // Save only repositories
+        async function saveRepositories() {
+            try {
+                // Collect tool repositories
+                const toolRepositories = collectRepositories();
+                
+                // Validate repositories
+                const { hasErrors, errorMessages } = validateRepositories(toolRepositories);
+                if (hasErrors) {
+                    alert(`Please fix the following errors:\n\n${errorMessages.join('\n')}`);
+                    return;
+                }
+                
+                // Create config object with dot notation paths as expected by the API
+                const config = {
+                    'tool_repositories': toolRepositories
+                };
+                
+                // Show saving indicator
+                const saveBtn = document.getElementById('save-repositories-btn');
+                const originalText = saveBtn.innerHTML;
+                saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
+                saveBtn.disabled = true;
+                
+                // Send to server
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    saveBtn.innerHTML = '<i class="bi bi-check-circle"></i> Saved!';
+                    markRepositoriesSaved();
+                    setTimeout(() => {
+                        saveBtn.innerHTML = originalText;
+                        saveBtn.disabled = false;
+                    }, 2000);
+                } else {
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.disabled = false;
+                    alert(`Failed to save repositories: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error saving repositories:', error);
+                document.getElementById('save-repositories-btn').innerHTML = '<i class="bi bi-save"></i> Save Repositories';
+                document.getElementById('save-repositories-btn').disabled = false;
+                alert('Failed to save repositories. Please check the console for details.');
+            }
+        }
+        
+        // Reset database
+        async function resetDatabase() {
+            if (!confirm('Are you sure you want to reset the database? This will delete all model information and cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/reset-database', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Database reset successfully!');
+                } else {
+                    alert(`Failed to reset database: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error resetting database:', error);
+                alert('Failed to reset database. Please check the console for details.');
+            }
+        }
+        
+        // Initialize
+        let currentRepositoryItem = null;
+        
+        // Add window beforeunload event to warn about unsaved changes
+        window.addEventListener('beforeunload', (e) => {
+            if (repositoriesChanged) {
+                // Standard way of showing a confirmation dialog before leaving
+                e.preventDefault();
+                e.returnValue = 'You have unsaved changes in the Tool Repositories section. Are you sure you want to leave?';
+                return e.returnValue;
+            }
+        });
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize Bootstrap components
+            directoryBrowserModal = new bootstrap.Modal(document.getElementById('directory-browser-modal'));
+            
+            // Load settings
+            loadSettings();
+            
+            // Set up event listeners
+            document.getElementById('browse-btn').addEventListener('click', () => {
+                browseDirectory('/');
+                currentRepositoryItem = null;
+                directoryBrowserModal.show();
+            });
+            
+            document.getElementById('select-directory-btn').addEventListener('click', () => {
+                if (currentRepositoryItem) {
+                    const locationInput = currentRepositoryItem.querySelector('.repository-location');
+                    locationInput.value = currentBrowsePath;
+                    markRepositoriesChanged();
+                    
+                    // If this is the model library path and the repository isn't symlinked, show a confirmation
+                    const modelLibraryPath = document.getElementById('model-library-path').value;
+                    const symlinkFromLibrary = currentRepositoryItem.querySelector('.symlink-from-library').checked;
+                    
+                    if (modelLibraryPath && !symlinkFromLibrary && 
+                        (currentBrowsePath === modelLibraryPath || currentBrowsePath.startsWith(modelLibraryPath + '/'))) {
+                        if (confirm('This location is within your Model Library path. Would you like to enable "Symlink from AI Library" for this repository?')) {
+                            currentRepositoryItem.querySelector('.symlink-from-library').checked = true;
+                            currentRepositoryItem.querySelector('.repository-details').style.display = 'block';
+                            markRepositoriesChanged();
+                        }
+                    }
+                } else {
+                    document.getElementById('model-library-path').value = currentBrowsePath;
+                }
+                directoryBrowserModal.hide();
+            });
+            
+            document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+            document.getElementById('reset-db-btn').addEventListener('click', resetDatabase);
+            document.getElementById('add-repository-btn').addEventListener('click', () => {
+                // Get a new repository with default values
+                const modelLibraryPath = document.getElementById('model-library-path').value;
+                const newRepo = {
+                    name: '',
+                    symlink_from_library: false,
+                    repository_location: '',
+                    require_parent_directory: false,
+                    understands_shards: false
+                };
+                addRepository(newRepo);
+                
+                // Focus on the name field of the newly added repository
+                const repos = document.querySelectorAll('.repository-item');
+                const lastRepo = repos[repos.length - 1];
+                const nameField = lastRepo.querySelector('.repository-name');
+                nameField.focus();
+                
+                // Add a name change listener to suggest repository location
+                nameField.addEventListener('change', function() {
+                    if (this.value && !lastRepo.querySelector('.symlink-from-library').checked) {
+                        const locationField = lastRepo.querySelector('.repository-location');
+                        if (!locationField.value) {
+                            const suggestedLocation = suggestDefaultRepositoryLocation(this.value, modelLibraryPath);
+                            if (suggestedLocation) {
+                                locationField.value = suggestedLocation;
+                                markRepositoriesChanged();
+                            }
+                        }
+                    }
+                });
+            });
+            document.getElementById('save-repositories-btn').addEventListener('click', saveRepositories);
+            
+            // Add event handler for the use-model-library-btn button
+            document.getElementById('use-model-library-btn').addEventListener('click', function() {
+                const repositories = document.querySelectorAll('.repository-item');
+                if (repositories.length === 0) {
+                    alert('No repositories to update');
+                    return;
+                }
+                
+                if (confirm('This will set all repositories to symlink from the AI Library. Continue?')) {
+                    repositories.forEach(repo => {
+                        repo.querySelector('.symlink-from-library').checked = true;
+                        repo.querySelector('.repository-details').style.display = 'block';
+                    });
+                    markRepositoriesChanged();
+                }
+            });
+            
+            // Initialize tooltips
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
+    </script>
+</body>
+</html>

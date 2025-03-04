@@ -38,7 +38,25 @@ DEFAULT_CONFIG = {
             "enabled": True,
             "repositories": ["ollama"]
         }
-    }
+    },
+    "tool_repositories": [
+        {
+            "name": "Ollama",
+            "use_ai_library": True,  # Kept for backward compatibility
+            "symlink_from_library": True,
+            "repository_location": "/usr/local/bin/ollama",
+            "require_parent_directory": False,
+            "understands_shards": False
+        },
+        {
+            "name": "GPT4All",
+            "use_ai_library": False,  # Kept for backward compatibility
+            "symlink_from_library": False,
+            "repository_location": "",
+            "require_parent_directory": False,
+            "understands_shards": False
+        }
+    ]
 }
 
 # Global configuration object
@@ -143,3 +161,6 @@ def get_ollama_repositories():
 
 def get_app_version():
     return get_setting('app.version')
+
+def get_tool_repositories():
+    return get_setting('tool_repositories', [])
