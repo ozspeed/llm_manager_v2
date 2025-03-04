@@ -1,15 +1,142 @@
 """
 Configuration settings for the LLM Model Manager application.
+This module provides a configuration system that can load and save settings to a JSON file.
 """
 
 import os
+import json
+import logging
+from pathlib import Path
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('config')
 
 # Application version
-APP_VERSION = "1.0.0"  # MVP 1.0
+APP_VERSION = "1.0.0-mvp-refactored"
 
-# Default paths - can be overridden by environment variables
-MODEL_LIBRARY_PATH = os.environ.get('MODEL_LIBRARY_PATH', "/Volumes/Library_Bolt/AI Model Library")
-DATABASE_PATH = os.environ.get('DATABASE_PATH', "models.db")
+# Configuration file path
+CONFIG_FILE = "settings.json"
 
-# Supported model file extensions
-MODEL_EXTENSIONS = ['.gguf', '.ggml', '.bin', '.safetensors', '.onnx', '.pt', '.pth']
+# Default configuration
+DEFAULT_CONFIG = {
+    "app": {
+        "version": APP_VERSION,
+        "port": 8001,
+        "debug": True
+    },
+    "paths": {
+        "model_library": "/Volumes/Library_Bolt/AI Model Library",
+        "database": "models.db"
+    },
+    "models": {
+        "extensions": [".gguf", ".ggml", ".bin", ".safetensors", ".onnx", ".pt", ".pth"]
+    },
+    "frameworks": {
+        "ollama": {
+            "enabled": True,
+            "repositories": ["ollama"]
+        }
+    }
+}
+
+# Global configuration object
+config = {}
+
+def load_config():
+    """Load configuration from file or create with defaults if it doesn't exist."""
+    global config
+    
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r') as f:
+                loaded_config = json.load(f)
+                logger.info(f"Loaded configuration from {CONFIG_FILE}")
+                
+                # Merge with defaults to ensure all keys exist
+                config = DEFAULT_CONFIG.copy()
+                update_nested_dict(config, loaded_config)
+        else:
+            config = DEFAULT_CONFIG.copy()
+            save_config()
+            logger.info(f"Created new configuration file at {CONFIG_FILE}")
+    except Exception as e:
+        logger.error(f"Error loading configuration: {e}")
+        config = DEFAULT_CONFIG.copy()
+    
+    return config
+
+def save_config():
+    """Save current configuration to file."""
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=4)
+        logger.info(f"Saved configuration to {CONFIG_FILE}")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving configuration: {e}")
+        return False
+
+def update_nested_dict(d, u):
+    """Recursively update a nested dictionary."""
+    for k, v in u.items():
+        if isinstance(v, dict) and k in d and isinstance(d[k], dict):
+            update_nested_dict(d[k], v)
+        else:
+            d[k] = v
+
+def get_setting(path, default=None):
+    """Get a setting value using dot notation path."""
+    parts = path.split('.')
+    current = config
+    
+    for part in parts:
+        if part in current:
+            current = current[part]
+        else:
+            return default
+    
+    return current
+
+def set_setting(path, value):
+    """Set a setting value using dot notation path."""
+    parts = path.split('.')
+    current = config
+    
+    # Navigate to the correct nested dictionary
+    for i, part in enumerate(parts[:-1]):
+        if part not in current:
+            current[part] = {}
+        current = current[part]
+    
+    # Set the value
+    current[parts[-1]] = value
+    
+    # Save the updated configuration
+    return save_config()
+
+# Initialize configuration
+load_config()
+
+# Convenience accessors for common settings
+def get_model_library_path():
+    return get_setting('paths.model_library')
+
+def get_database_path():
+    return get_setting('paths.database')
+
+def get_model_extensions():
+    return get_setting('models.extensions')
+
+def get_port():
+    return get_setting('app.port')
+
+def get_debug_mode():
+    return get_setting('app.debug')
+
+def get_ollama_enabled():
+    return get_setting('frameworks.ollama.enabled')
+
+def get_ollama_repositories():
+    return get_setting('frameworks.ollama.repositories', [])

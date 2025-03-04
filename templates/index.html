@@ -121,6 +121,50 @@
             </div>
         </div>
 
+        <!-- Settings Section -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Settings</h5>
+                        <button id="save-settings-btn" class="btn btn-sm btn-light">Save Settings</button>
+                    </div>
+                    <div class="card-body">
+                        <form id="settings-form">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>General Settings</h6>
+                                    <div class="mb-3">
+                                        <label for="model-library-path" class="form-label">Model Library Path</label>
+                                        <input type="text" class="form-control" id="model-library-path">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="server-port" class="form-label">Server Port</label>
+                                        <input type="number" class="form-control" id="server-port" min="1024" max="65535">
+                                    </div>
+                                    <div class="mb-3 form-check">
+                                        <input type="checkbox" class="form-check-input" id="debug-mode">
+                                        <label class="form-check-label" for="debug-mode">Debug Mode</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Framework Settings</h6>
+                                    <div class="mb-3 form-check">
+                                        <input type="checkbox" class="form-check-input" id="ollama-enabled">
+                                        <label class="form-check-label" for="ollama-enabled">Enable Ollama Integration</label>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="ollama-repositories" class="form-label">Ollama Repositories (comma-separated)</label>
+                                        <input type="text" class="form-control" id="ollama-repositories">
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Models List -->
         <div class="row" id="models-section">
             <div class="col-md-12">
@@ -431,17 +475,87 @@
             }
         }
 
+        // Load settings from server
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                
+                // Update form fields with current settings
+                document.getElementById('model-library-path').value = data.paths.model_library;
+                document.getElementById('server-port').value = data.app.port;
+                document.getElementById('debug-mode').checked = data.app.debug;
+                document.getElementById('ollama-enabled').checked = data.frameworks.ollama.enabled;
+                document.getElementById('ollama-repositories').value = data.frameworks.ollama.repositories.join(', ');
+                
+                // Also update the library path in the scan form
+                document.getElementById('library-path').value = data.paths.model_library;
+                
+                console.log('Settings loaded:', data);
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+        
+        // Save settings to server
+        async function saveSettings() {
+            try {
+                // Get values from form
+                const modelLibraryPath = document.getElementById('model-library-path').value;
+                const serverPort = parseInt(document.getElementById('server-port').value);
+                const debugMode = document.getElementById('debug-mode').checked;
+                const ollamaEnabled = document.getElementById('ollama-enabled').checked;
+                const ollamaRepositories = document.getElementById('ollama-repositories').value
+                    .split(',').map(repo => repo.trim()).filter(repo => repo.length > 0);
+                
+                // Create settings object
+                const settings = {
+                    'paths.model_library': modelLibraryPath,
+                    'app.port': serverPort,
+                    'app.debug': debugMode,
+                    'frameworks.ollama.enabled': ollamaEnabled,
+                    'frameworks.ollama.repositories': ollamaRepositories
+                };
+                
+                // Send to server
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Settings saved successfully! You may need to restart the server for some changes to take effect.');
+                    // Update the library path in the scan form
+                    document.getElementById('library-path').value = modelLibraryPath;
+                } else {
+                    alert('Error saving settings: ' + result.error);
+                }
+                
+                console.log('Settings saved:', result);
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                alert('Error saving settings: ' + error.message);
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             // Load initial data
             updateSystemInfo();
             loadModels();
+            loadSettings();
             
             // Set up event listeners
             document.getElementById('add-model-form').addEventListener('submit', addModel);
             document.getElementById('scan-library-btn').addEventListener('click', scanLibrary);
             document.getElementById('search-models').addEventListener('input', loadModels);
             document.getElementById('reset-db-btn').addEventListener('click', resetDatabase);
+            document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
             
             // Update system info periodically
             setInterval(updateSystemInfo, 30000);

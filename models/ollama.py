@@ -69,10 +69,21 @@ def parse_ollama_modelfile(modelfile_content):
     
     return metadata
 
-def scan_ollama_models():
-    """Scan for Ollama models and add them to the database."""
+def scan_ollama_models(repositories=None):
+    """Scan for Ollama models and add them to the database.
+    
+    Args:
+        repositories: List of repositories to scan (e.g., ['ollama', 'local']). 
+                     If None, only the default 'ollama' repository will be scanned.
+    """
     try:
         print("\n==== Starting Ollama model scan ====")
+        
+        # Set default repositories if none provided
+        if repositories is None or len(repositories) == 0:
+            repositories = ["ollama"]
+        
+        print(f"Scanning repositories: {repositories}")
         
         # Check if Ollama is installed
         try:
@@ -167,9 +178,16 @@ def scan_ollama_models():
                     metadata = {}
                     print(f"Error getting modelfile details: {e}")
                 
+                # Determine which repository this model belongs to
+                repository = "ollama"  # Default repository
+                for repo in repositories:
+                    if model_name.startswith(f"{repo}/") or repo == "ollama":
+                        repository = repo
+                        break
+                
                 # Create a path for the Ollama model
                 # This is a virtual path since Ollama manages its own storage
-                ollama_path = f"ollama://{model_name}"
+                ollama_path = f"ollama://{repository}/{model_name}"
                 
                 # Extract a more human-readable display name from the model name
                 # If it has a tag (e.g., 'deepseek-r1:70b'), use that as the display name
@@ -192,7 +210,8 @@ def scan_ollama_models():
                     "ollama_id": model_id,
                     "modelfile": metadata,
                     "is_ollama": True,
-                    "display_name": display_name
+                    "display_name": display_name,
+                    "repository": repository
                 }
                 
                 # Add model to database - use the display name instead of the raw model name
