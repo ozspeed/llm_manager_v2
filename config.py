@@ -140,3 +140,6 @@ def get_ollama_enabled():
 
 def get_ollama_repositories():
     return get_setting('frameworks.ollama.repositories', [])
+
+def get_app_version():
+    return get_setting('app.version')

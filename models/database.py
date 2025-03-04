@@ -9,11 +9,11 @@ from pathlib import Path
 from datetime import datetime
 import traceback
 
-from config import DATABASE_PATH
+import config
 
 def init_db():
     """Initialize the database and create tables if they don't exist."""
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = sqlite3.connect(config.get_database_path())
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS models (
@@ -32,7 +32,7 @@ def init_db():
 def get_all_models():
     """Get all models from the database."""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = sqlite3.connect(config.get_database_path())
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM models ORDER BY name")
@@ -91,7 +91,7 @@ def add_model(name, framework, path, config=None, size_override=None):
             # Use provided size or calculate from file
             size_mb = size_override if size_override is not None else file_path.stat().st_size / (1024 * 1024)
         
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = sqlite3.connect(config.get_database_path())
         cursor = conn.cursor()
         
         # Ensure config is a proper JSON string
@@ -148,7 +148,7 @@ def add_model(name, framework, path, config=None, size_override=None):
 def delete_model(model_id):
     """Delete a model from the database by ID."""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = sqlite3.connect(config.get_database_path())
         cursor = conn.cursor()
         
         # Check if model exists
@@ -169,7 +169,7 @@ def delete_model(model_id):
 def reset_database():
     """Reset the database by dropping and recreating the models table."""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = sqlite3.connect(config.get_database_path())
         cursor = conn.cursor()
         
         # Drop the models table

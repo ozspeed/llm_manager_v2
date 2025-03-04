@@ -8,7 +8,7 @@ import re
 import json
 from pathlib import Path
 
-from config import MODEL_EXTENSIONS
+import config
 from models.database import add_model
 
 def detect_framework(file_path):
@@ -178,7 +178,7 @@ def count_shards(base_name, file_list, extension):
 def scan_directory(directory_path):
     """Scan directory for model files and add them to the database."""
     try:
-        print(f"DEBUG: MODEL_EXTENSIONS = {MODEL_EXTENSIONS}")
+        print(f"DEBUG: MODEL_EXTENSIONS = {config.get_model_extensions()}")
         directory = Path(directory_path)
         if not directory.exists() or not directory.is_dir():
             return {"error": f"Directory does not exist: {directory_path}"}, 400
@@ -217,8 +217,8 @@ def scan_directory(directory_path):
                 print(f"DEBUG: Processing file: {file} with extension {file_ext}")
                 
                 # Skip non-model files
-                if file_ext not in MODEL_EXTENSIONS:
-                    print(f"DEBUG: Skipping {file} - extension {file_ext} not in {MODEL_EXTENSIONS}")
+                if file_ext not in config.get_model_extensions():
+                    print(f"DEBUG: Skipping {file} - extension {file_ext} not in {config.get_model_extensions()}")
                     continue
                 
                 # Check if this is a shard file
