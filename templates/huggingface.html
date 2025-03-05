@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hugging Face Models - LLM Model Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+        }
+        .sidebar .nav-link {
+            color: #333;
+            border-radius: 0;
+            padding: 0.5rem 1rem;
+        }
+        .sidebar .nav-link.active {
+            background-color: #0d6efd;
+            color: white;
+        }
+        .sidebar .nav-link:hover:not(.active) {
+            background-color: #e9ecef;
+        }
+        .sidebar-heading {
+            padding: 0.875rem 1.25rem;
+            font-size: 1.2rem;
+        }
+        .main-content {
+            padding: 1.5rem;
+        }
+        .model-card {
+            transition: all 0.3s;
+        }
+        .model-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 col-lg-2 d-md-block sidebar p-0">
+                <div class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1">
+                    <span>LLM Manager</span>
+                </div>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-2" href="/">
+                            <i class="bi bi-house"></i>
+                            Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active d-flex align-items-center gap-2" href="/huggingface">
+                            <i class="bi bi-cloud-download"></i>
+                            Hugging Face
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-2" href="/settings">
+                            <i class="bi bi-gear"></i>
+                            Settings
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main content -->
+            <div class="col-md-10 col-lg-10 main-content">
+                <header class="pb-3 mb-4 border-bottom">
+                    <h1 class="display-5 fw-bold">Hugging Face Models</h1>
+                    <p class="lead">Search, browse, and download models from Hugging Face Hub</p>
+                </header>
+
+                <!-- Search Section -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">Search Models</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="hf-search-form" class="mb-3">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="hf-search-query" placeholder="Search for models...">
+                                        <select class="form-select" id="hf-search-task" style="max-width: 200px;">
+                                            <option value="">All Tasks</option>
+                                            <option value="text-generation" selected>Text Generation</option>
+                                            <option value="text-classification">Text Classification</option>
+                                            <option value="token-classification">Token Classification</option>
+                                            <option value="translation">Translation</option>
+                                            <option value="summarization">Summarization</option>
+                                            <option value="question-answering">Question Answering</option>
+                                            <option value="image-classification">Image Classification</option>
+                                            <option value="image-segmentation">Image Segmentation</option>
+                                            <option value="object-detection">Object Detection</option>
+                                        </select>
+                                        <button class="btn btn-primary" type="submit">
+                                            <i class="bi bi-search"></i> Search
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header bg-secondary text-white">
+                                <h5 class="mb-0" id="results-title">Popular Models</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="hf-search-results">
+                                    <div class="text-center" id="loading-indicator">
+                                        <p>Loading popular models...</p>
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <div class="row" id="models-container">
+                                        <!-- Model cards will be added here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Details Modal -->
+    <div class="modal fade" id="model-details-modal" tabindex="-1" aria-labelledby="model-details-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="model-details-modal-label">Model Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="model-details-content">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="download-model-btn">Download Model</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container for notifications -->
+    <div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index: 5;"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let currentModelId = null;
+        let modelDetailsModal = null;
+
+        // Format bytes to human-readable format
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        // Show toast message
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            
+            const toastId = `toast-${Date.now()}`;
+            const toastHtml = `
+                <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header bg-${type} text-white">
+                        <strong class="me-auto">LLM Model Manager</strong>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            `;
+            
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+            toast.show();
+            
+            // Remove the toast element after it's hidden
+            toastElement.addEventListener('hidden.bs.toast', () => {
+                toastElement.remove();
+            });
+        }
+
+        // Load popular models
+        async function loadPopularModels() {
+            try {
+                document.getElementById('loading-indicator').style.display = 'block';
+                document.getElementById('models-container').innerHTML = '';
+                document.getElementById('results-title').textContent = 'Popular Models';
+                
+                const response = await fetch('/api/huggingface/popular');
+                if (!response.ok) {
+                    throw new Error('Failed to load popular models');
+                }
+                
+                const data = await response.json();
+                renderModelResults(data.models);
+            } catch (error) {
+                console.error('Error loading popular models:', error);
+                document.getElementById('loading-indicator').style.display = 'none';
+                document.getElementById('models-container').innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-danger">
+                            Failed to load popular models. Error: ${error.message}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Search models
+        async function searchModels(event) {
+            event.preventDefault();
+            
+            const query = document.getElementById('hf-search-query').value;
+            const task = document.getElementById('hf-search-task').value;
+            
+            try {
+                document.getElementById('loading-indicator').style.display = 'block';
+                document.getElementById('models-container').innerHTML = '';
+                document.getElementById('results-title').textContent = `Search Results: ${query || task || 'All Models'}`;
+                
+                const response = await fetch(`/api/huggingface/search?query=${encodeURIComponent(query)}&task=${encodeURIComponent(task)}`);
+                if (!response.ok) {
+                    throw new Error('Failed to search models');
+                }
+                
+                const data = await response.json();
+                renderModelResults(data.models);
+            } catch (error) {
+                console.error('Error searching models:', error);
+                document.getElementById('loading-indicator').style.display = 'none';
+                document.getElementById('models-container').innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-danger">
+                            Failed to search models. Error: ${error.message}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Render model results
+        function renderModelResults(models) {
+            const container = document.getElementById('models-container');
+            document.getElementById('loading-indicator').style.display = 'none';
+            
+            if (!models || models.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            No models found matching your criteria.
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            models.forEach(model => {
+                const card = document.createElement('div');
+                card.className = 'col-md-4 mb-4';
+                card.innerHTML = `
+                    <div class="card model-card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">${model.name}</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">${model.author}</h6>
+                            <div class="mb-2">
+                                <span class="badge bg-primary">${model.pipeline_tag || 'Unknown'}</span>
+                                ${model.library_name ? `<span class="badge bg-secondary">${model.library_name}</span>` : ''}
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-download"></i> ${model.downloads.toLocaleString()} downloads
+                                    <i class="bi bi-heart ms-2"></i> ${model.likes.toLocaleString()} likes
+                                </small>
+                            </div>
+                            <a href="#" class="btn btn-outline-primary btn-sm view-details" data-model-id="${model.id}">
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            
+            // Add event listeners to view details buttons
+            document.querySelectorAll('.view-details').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const modelId = button.getAttribute('data-model-id');
+                    openModelDetails(modelId);
+                });
+            });
+        }
+
+        // Open model details modal
+        async function openModelDetails(modelId) {
+            currentModelId = modelId;
+            
+            // Reset modal content
+            document.getElementById('model-details-content').innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            `;
+            
+            // Update modal title
+            document.getElementById('model-details-modal-label').textContent = `Model Details: ${modelId.split('/').pop()}`;
+            
+            // Show modal
+            modelDetailsModal.show();
+            
+            try {
+                const response = await fetch(`/api/huggingface/model/${encodeURIComponent(modelId)}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load model details');
+                }
+                
+                const model = await response.json();
+                
+                // Update modal content
+                document.getElementById('model-details-content').innerHTML = `
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h4>${model.name}</h4>
+                            <h6 class="text-muted">by ${model.author}</h6>
+                            
+                            <div class="mb-3">
+                                <span class="badge bg-primary">${model.pipeline_tag || 'Unknown'}</span>
+                                ${model.library_name ? `<span class="badge bg-secondary">${model.library_name}</span>` : ''}
+                                <span class="badge bg-success"><i class="bi bi-download"></i> ${model.downloads.toLocaleString()}</span>
+                                <span class="badge bg-danger"><i class="bi bi-heart"></i> ${model.likes.toLocaleString()}</span>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h5>Description</h5>
+                                <div class="card">
+                                    <div class="card-body">
+                                        ${model.description ? model.description.replace(/\n/g, '<br>') : 'No description available.'}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h5>Files</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Filename</th>
+                                                <th>Type</th>
+                                                <th>Size</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${model.siblings.map(file => `
+                                                <tr>
+                                                    <td>${file.name}</td>
+                                                    <td>${file.type}</td>
+                                                    <td>${formatBytes(file.size)}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <a href="${model.url}" target="_blank" class="btn btn-outline-secondary">
+                                    <i class="bi bi-box-arrow-up-right"></i> View on Hugging Face
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading model details:', error);
+                document.getElementById('model-details-content').innerHTML = `
+                    <div class="alert alert-danger">
+                        Failed to load model details. Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Download model
+        async function downloadModel() {
+            if (!currentModelId) {
+                showToast('No model selected for download', 'danger');
+                return;
+            }
+            
+            try {
+                // Disable download button
+                const downloadBtn = document.getElementById('download-model-btn');
+                downloadBtn.disabled = true;
+                downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Downloading...';
+                
+                const response = await fetch('/api/huggingface/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model_id: currentModelId
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to download model');
+                }
+                
+                const result = await response.json();
+                
+                // Close modal
+                modelDetailsModal.hide();
+                
+                // Show success message
+                showToast(`Successfully downloaded model: ${currentModelId}`, 'success');
+                
+                // Reset current model
+                currentModelId = null;
+            } catch (error) {
+                console.error('Error downloading model:', error);
+                showToast(`Failed to download model: ${error.message}`, 'danger');
+            } finally {
+                // Re-enable download button
+                const downloadBtn = document.getElementById('download-model-btn');
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = 'Download Model';
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize Bootstrap components
+            modelDetailsModal = new bootstrap.Modal(document.getElementById('model-details-modal'));
+            
+            // Add event listeners
+            document.getElementById('hf-search-form').addEventListener('submit', searchModels);
+            document.getElementById('download-model-btn').addEventListener('click', downloadModel);
+            
+            // Load popular models on page load
+            loadPopularModels();
+        });
+    </script>
+</body>
+</html>

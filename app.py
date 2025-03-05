@@ -20,6 +20,7 @@ import json
 from models.database import init_db, get_all_models, add_model, delete_model, reset_database
 from models.detection import scan_directory, is_shard_file, extract_base_name
 from models.ollama import scan_ollama_models
+from models.huggingface import search_models, get_model_details, download_model, get_popular_models
 from utils.system import get_system_info
 from utils.file_browser import browse_directories
 from utils.model_scanner import scan_for_models
@@ -35,6 +36,10 @@ init_db()
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/huggingface')
+def huggingface():
+    return render_template('huggingface.html')
 
 @app.route('/settings')
 def settings():
@@ -905,6 +910,47 @@ def confirm_overwrite_multiple():
         "added": added_models,
         "errors": errors
     })
+
+@app.route('/api/huggingface/search', methods=['GET'])
+def hf_search_models():
+    """Search for models on Hugging Face Hub."""
+    query = request.args.get('query', '')
+    task = request.args.get('task', None)
+    library = request.args.get('library', None)
+    limit = request.args.get('limit', 50, type=int)
+    
+    result, status_code = search_models(query, task, library, limit)
+    return jsonify(result), status_code
+
+@app.route('/api/huggingface/model/<path:model_id>', methods=['GET'])
+def hf_get_model_details(model_id):
+    """Get detailed information about a specific model."""
+    result, status_code = get_model_details(model_id)
+    return jsonify(result), status_code
+
+@app.route('/api/huggingface/download', methods=['POST'])
+def hf_download_model():
+    """Download a model from Hugging Face Hub."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    model_id = data.get('model_id')
+    filename = data.get('filename', None)
+    revision = data.get('revision', None)
+    
+    if not model_id:
+        return jsonify({"error": "Model ID is required"}), 400
+    
+    result, status_code = download_model(model_id, filename, revision)
+    return jsonify(result), status_code
+
+@app.route('/api/huggingface/popular', methods=['GET'])
+def hf_get_popular_models():
+    """Get a list of popular models from Hugging Face Hub."""
+    limit = request.args.get('limit', 20, type=int)
+    result, status_code = get_popular_models(limit)
+    return jsonify(result), status_code
 
 if __name__ == '__main__':
     import argparse
