@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger('config')
 
 # Application version
-APP_VERSION = "1.0.0-mvp-refactored"
+APP_VERSION = "1.1.0"
 
 # Configuration file path
 CONFIG_FILE = "settings.json"
@@ -46,7 +46,8 @@ DEFAULT_CONFIG = {
             "symlink_from_library": True,
             "repository_location": "/usr/local/bin/ollama",
             "require_parent_directory": False,
-            "understands_shards": False
+            "understands_shards": False,
+            "audit_trail": []
         },
         {
             "name": "GPT4All",
@@ -54,7 +55,8 @@ DEFAULT_CONFIG = {
             "symlink_from_library": False,
             "repository_location": "",
             "require_parent_directory": False,
-            "understands_shards": False
+            "understands_shards": False,
+            "audit_trail": []
         }
     ]
 }
