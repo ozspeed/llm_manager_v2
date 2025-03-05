@@ -72,9 +72,16 @@
 
             <!-- Main content -->
             <div class="col-md-10 col-lg-10 main-content">
-                <header class="pb-3 mb-4 border-bottom">
-                    <h1 class="display-5 fw-bold">Hugging Face Models</h1>
-                    <p class="lead">Search, browse, and download models from Hugging Face Hub</p>
+                <header class="pb-3 mb-4 border-bottom d-flex justify-content-between align-items-end">
+                    <div>
+                        <h1 class="display-5 fw-bold">Hugging Face Models</h1>
+                        <p class="lead">Search, browse, and download models from Hugging Face Hub</p>
+                    </div>
+                    <div>
+                        <button id="active-downloads-btn" class="btn btn-outline-primary">
+                            <i class="bi bi-download"></i> Downloads <span id="active-downloads-count" class="badge bg-primary">0</span>
+                        </button>
+                    </div>
                 </header>
 
                 <!-- Search Section -->
@@ -152,9 +159,38 @@
                         </div>
                     </div>
                 </div>
+                <div class="modal-footer d-flex justify-content-between">
+                    <div class="version-selector">
+                        <select class="form-select" id="model-version-select" aria-label="Model version">
+                            <option value="main" selected>Default (main)</option>
+                            <!-- Other versions will be added dynamically -->
+                        </select>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" id="download-model-btn">Download Model</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Active Downloads Modal -->
+    <div class="modal fade" id="active-downloads-modal" tabindex="-1" aria-labelledby="active-downloads-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="active-downloads-modal-label">Active Downloads</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="active-downloads-container">
+                        <p class="text-center" id="no-downloads-message">No active downloads</p>
+                        <!-- Active downloads will be added here -->
+                    </div>
+                </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="download-model-btn">Download Model</button>
                 </div>
             </div>
         </div>
@@ -168,15 +204,93 @@
         // Global variables
         let currentModelId = null;
         let modelDetailsModal = null;
+        let activeDownloadsModal = null;
+        let activeDownloads = {};
+        let downloadCheckInterval = null;
 
         // Format bytes to human-readable format
         function formatBytes(bytes, decimals = 2) {
-            if (bytes === 0) return '0 Bytes';
+            if (bytes === 0 || bytes === null || bytes === undefined) return 'Unknown';
             const k = 1024;
             const dm = decimals < 0 ? 0 : decimals;
             const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+        
+        // Format model card data into a readable HTML format
+        function formatModelCardData(cardData) {
+            if (!cardData || typeof cardData !== 'object') return 'No model information available.';
+            
+            // Convert the card data object to HTML
+            let html = '<table class="table table-sm">';
+            
+            // Add rows for each property
+            for (const [key, value] of Object.entries(cardData)) {
+                if (value === null || value === undefined) continue;
+                
+                let displayValue = value;
+                
+                // Format arrays
+                if (Array.isArray(value)) {
+                    displayValue = value.join(', ');
+                }
+                // Format nested objects
+                else if (typeof value === 'object') {
+                    displayValue = JSON.stringify(value, null, 2);
+                }
+                
+                html += `
+                    <tr>
+                        <th style="width: 30%">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</th>
+                        <td>${displayValue}</td>
+                    </tr>
+                `;
+            }
+            
+            html += '</table>';
+            return html;
+        }
+        
+        // Format README content to extract and display model information
+        function formatReadme(readme) {
+            if (!readme) return 'No README content available.';
+            
+            // Convert markdown to HTML (basic conversion)
+            let html = '';
+            
+            // Replace markdown headers
+            html = readme
+                .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+                .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+                .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+                .replace(/^#### (.+)$/gm, '<h5>$1</h5>')
+                .replace(/^##### (.+)$/gm, '<h6>$1</h6>');
+            
+            // Replace markdown links
+            html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+            
+            // Replace markdown emphasis
+            html = html.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+            
+            // Replace newlines with <br>
+            html = html.replace(/\n/g, '<br>');
+            
+            // Try to extract the Model Information section if it exists
+            const modelInfoMatch = html.match(/<h[2-6]>Model Information<\/h[2-6]>([\s\S]*?)(<h[2-6]>|$)/);
+            if (modelInfoMatch) {
+                return modelInfoMatch[1];
+            }
+            
+            // If no Model Information section, try to extract the Description section
+            const descriptionMatch = html.match(/<h[2-6]>Description<\/h[2-6]>([\s\S]*?)(<h[2-6]>|$)/);
+            if (descriptionMatch) {
+                return descriptionMatch[1];
+            }
+            
+            // If neither specific section is found, return the first 1000 characters
+            return html.substring(0, 1000) + (html.length > 1000 ? '...' : '');
         }
 
         // Show toast message
@@ -334,6 +448,10 @@
                 </div>
             `;
             
+            // Reset version selector
+            const versionSelect = document.getElementById('model-version-select');
+            versionSelect.innerHTML = '<option value="main" selected>Default (main)</option>';
+            
             // Update modal title
             document.getElementById('model-details-modal-label').textContent = `Model Details: ${modelId.split('/').pop()}`;
             
@@ -341,12 +459,57 @@
             modelDetailsModal.show();
             
             try {
+                // Fetch model details
                 const response = await fetch(`/api/huggingface/model/${encodeURIComponent(modelId)}`);
                 if (!response.ok) {
                     throw new Error('Failed to load model details');
                 }
                 
                 const model = await response.json();
+                
+                // Fetch model versions
+                const versionsResponse = await fetch(`/api/huggingface/versions?model_id=${encodeURIComponent(modelId)}`);
+                if (versionsResponse.ok) {
+                    const versionsData = await versionsResponse.json();
+                    
+                    // Populate version selector
+                    if (versionsData.versions) {
+                        // Add tags
+                        if (versionsData.versions.tags && versionsData.versions.tags.length > 0) {
+                            const tagsOptgroup = document.createElement('optgroup');
+                            tagsOptgroup.label = 'Tags';
+                            
+                            versionsData.versions.tags.forEach(tag => {
+                                const option = document.createElement('option');
+                                option.value = `tag:${tag}`;
+                                option.textContent = tag;
+                                tagsOptgroup.appendChild(option);
+                            });
+                            
+                            versionSelect.appendChild(tagsOptgroup);
+                        }
+                        
+                        // Add branches
+                        if (versionsData.versions.branches && versionsData.versions.branches.length > 0) {
+                            const branchesOptgroup = document.createElement('optgroup');
+                            branchesOptgroup.label = 'Branches';
+                            
+                            versionsData.versions.branches.forEach(branch => {
+                                // Skip main branch as it's already the default option
+                                if (branch === 'main') return;
+                                
+                                const option = document.createElement('option');
+                                option.value = `branch:${branch}`;
+                                option.textContent = branch;
+                                branchesOptgroup.appendChild(option);
+                            });
+                            
+                            if (branchesOptgroup.children.length > 0) {
+                                versionSelect.appendChild(branchesOptgroup);
+                            }
+                        }
+                    }
+                }
                 
                 // Update modal content
                 document.getElementById('model-details-content').innerHTML = `
@@ -363,13 +526,27 @@
                             </div>
                             
                             <div class="mb-3">
-                                <h5>Description</h5>
+                                <h5>Model Information</h5>
                                 <div class="card">
                                     <div class="card-body">
-                                        ${model.description ? model.description.replace(/\n/g, '<br>') : 'No description available.'}
+                                        ${typeof model.description === 'object' ? formatModelCardData(model.description) : 
+                                          (typeof model.description === 'string' ? model.description.replace(/\n/g, '<br>') : 'No description available.')}
                                     </div>
                                 </div>
                             </div>
+                            
+                            ${model.readme ? `
+                            <div class="mb-3">
+                                <h5>Model Description</h5>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="readme-content">
+                                            ${formatReadme(model.readme)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            ` : ''}
                             
                             <div class="mb-3">
                                 <h5>Files</h5>
@@ -385,9 +562,9 @@
                                         <tbody>
                                             ${model.siblings.map(file => `
                                                 <tr>
-                                                    <td>${file.name}</td>
-                                                    <td>${file.type}</td>
-                                                    <td>${formatBytes(file.size)}</td>
+                                                    <td>${file.name || file.rfilename}</td>
+                                                    <td>${file.type || 'unknown'}</td>
+                                                    <td>${file.size ? formatBytes(file.size) : 'Unknown'}</td>
                                                 </tr>
                                             `).join('')}
                                         </tbody>
@@ -426,14 +603,33 @@
                 downloadBtn.disabled = true;
                 downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Downloading...';
                 
+                // Get selected version
+                const versionSelect = document.getElementById('model-version-select');
+                const selectedVersion = versionSelect.value;
+                
+                // Prepare request payload
+                const payload = {
+                    model_id: currentModelId
+                };
+                
+                // Add version info if not the default 'main'
+                if (selectedVersion !== 'main') {
+                    const [type, value] = selectedVersion.split(':');
+                    if (type === 'tag') {
+                        payload.revision = value;
+                        payload.revision_type = 'tag';
+                    } else if (type === 'branch') {
+                        payload.revision = value;
+                        payload.revision_type = 'branch';
+                    }
+                }
+                
                 const response = await fetch('/api/huggingface/download', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        model_id: currentModelId
-                    })
+                    body: JSON.stringify(payload)
                 });
                 
                 if (!response.ok) {
@@ -443,11 +639,30 @@
                 
                 const result = await response.json();
                 
+                // Add to active downloads
+                if (result.download_id) {
+                    activeDownloads[result.download_id] = {
+                        model_id: currentModelId,
+                        status: 'downloading',
+                        progress: 0,
+                        started_at: new Date().toISOString(),
+                        version: selectedVersion !== 'main' ? selectedVersion.split(':')[1] : 'main'
+                    };
+                    
+                    // Update downloads badge
+                    updateDownloadsCount();
+                    
+                    // Start checking download status if not already checking
+                    if (!downloadCheckInterval) {
+                        downloadCheckInterval = setInterval(checkDownloadsStatus, 2000);
+                    }
+                    
+                    // Show toast with download started
+                    showToast(`Download started for ${currentModelId}`, 'info');
+                }
+                
                 // Close modal
                 modelDetailsModal.hide();
-                
-                // Show success message
-                showToast(`Successfully downloaded model: ${currentModelId}`, 'success');
                 
                 // Reset current model
                 currentModelId = null;
@@ -462,17 +677,182 @@
             }
         }
 
+        // Update downloads count badge
+        function updateDownloadsCount() {
+            const count = Object.keys(activeDownloads).length;
+            const countElement = document.getElementById('active-downloads-count');
+            countElement.textContent = count;
+            
+            if (count > 0) {
+                countElement.classList.remove('d-none');
+            } else {
+                countElement.classList.add('d-none');
+                
+                // Clear interval if no active downloads
+                if (downloadCheckInterval) {
+                    clearInterval(downloadCheckInterval);
+                    downloadCheckInterval = null;
+                }
+            }
+        }
+        
+        // Check status of all active downloads
+        async function checkDownloadsStatus() {
+            const downloadIds = Object.keys(activeDownloads);
+            if (downloadIds.length === 0) {
+                return;
+            }
+            
+            for (const downloadId of downloadIds) {
+                try {
+                    const response = await fetch(`/api/huggingface/download/status?download_id=${downloadId}`);
+                    if (!response.ok) {
+                        continue;
+                    }
+                    
+                    const status = await response.json();
+                    
+                    // Update download info
+                    if (activeDownloads[downloadId]) {
+                        activeDownloads[downloadId].status = status.status;
+                        activeDownloads[downloadId].progress = status.progress || 0;
+                        
+                        // If completed or failed, show notification
+                        if (status.status === 'completed') {
+                            showToast(`Download completed: ${activeDownloads[downloadId].model_id}`, 'success');
+                            delete activeDownloads[downloadId];
+                            updateDownloadsCount();
+                        } else if (status.status === 'failed') {
+                            showToast(`Download failed: ${activeDownloads[downloadId].model_id} - ${status.error || 'Unknown error'}`, 'danger');
+                            delete activeDownloads[downloadId];
+                            updateDownloadsCount();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error checking download status:', error);
+                }
+            }
+            
+            // Update active downloads modal if it's open
+            if (document.getElementById('active-downloads-modal').classList.contains('show')) {
+                renderActiveDownloads();
+            }
+        }
+        
+        // Render active downloads in the modal
+        function renderActiveDownloads() {
+            const container = document.getElementById('active-downloads-container');
+            const noDownloadsMessage = document.getElementById('no-downloads-message');
+            
+            const downloadIds = Object.keys(activeDownloads);
+            
+            if (downloadIds.length === 0) {
+                noDownloadsMessage.classList.remove('d-none');
+                container.innerHTML = '';
+                return;
+            }
+            
+            noDownloadsMessage.classList.add('d-none');
+            
+            let html = '';
+            
+            for (const downloadId of downloadIds) {
+                const download = activeDownloads[downloadId];
+                
+                html += `
+                    <div class="card mb-3" id="download-${downloadId}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="card-title mb-0">${download.model_id}</h5>
+                                <button class="btn btn-sm btn-danger cancel-download" data-download-id="${downloadId}">
+                                    <i class="bi bi-x-circle"></i> Cancel
+                                </button>
+                            </div>
+                            <p class="card-text">
+                                <small class="text-muted">
+                                    Version: ${download.version || 'main'} | 
+                                    Started: ${new Date(download.started_at).toLocaleTimeString()}
+                                </small>
+                            </p>
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" 
+                                     style="width: ${download.progress}%" 
+                                     aria-valuenow="${download.progress}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    ${download.progress}%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+            
+            // Add event listeners to cancel buttons
+            document.querySelectorAll('.cancel-download').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const downloadId = button.getAttribute('data-download-id');
+                    await cancelDownload(downloadId);
+                });
+            });
+        }
+        
+        // Cancel a download
+        async function cancelDownload(downloadId) {
+            try {
+                const response = await fetch(`/api/huggingface/download/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        download_id: downloadId
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to cancel download');
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(`Download cancelled for ${activeDownloads[downloadId]?.model_id || 'model'}`, 'info');
+                    delete activeDownloads[downloadId];
+                    updateDownloadsCount();
+                    renderActiveDownloads();
+                }
+            } catch (error) {
+                console.error('Error cancelling download:', error);
+                showToast(`Failed to cancel download: ${error.message}`, 'danger');
+            }
+        }
+        
+        // Show active downloads modal
+        function showActiveDownloadsModal() {
+            renderActiveDownloads();
+            activeDownloadsModal.show();
+        }
+        
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             // Initialize Bootstrap components
             modelDetailsModal = new bootstrap.Modal(document.getElementById('model-details-modal'));
+            activeDownloadsModal = new bootstrap.Modal(document.getElementById('active-downloads-modal'));
             
             // Add event listeners
             document.getElementById('hf-search-form').addEventListener('submit', searchModels);
             document.getElementById('download-model-btn').addEventListener('click', downloadModel);
+            document.getElementById('active-downloads-btn').addEventListener('click', showActiveDownloadsModal);
             
             // Load popular models on page load
             loadPopularModels();
+            
+            // Initialize downloads count
+            updateDownloadsCount();
         });
     </script>
 </body>

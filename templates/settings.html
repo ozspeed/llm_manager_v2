@@ -101,6 +101,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-2" href="/huggingface">
+                            <i class="bi bi-cloud-download"></i>
+                            Hugging Face
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link active d-flex align-items-center gap-2" href="/settings">
                             <i class="bi bi-gear"></i>
                             Settings
@@ -134,14 +140,29 @@
                                 <div class="form-text">Directory where your model files are stored</div>
                             </div>
                             <div class="mb-3">
+                                <label for="draft-download-area" class="form-label">Draft Download Area</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="draft-download-area" name="draft_download_area">
+                                    <button class="btn btn-outline-secondary" type="button" id="browse-draft-btn">
+                                        <i class="bi bi-folder2-open"></i> Browse
+                                    </button>
+                                </div>
+                                <div class="form-text">Staging area for downloaded models before they're moved to the library</div>
+                            </div>
+                            <div class="mb-3">
                                 <label for="model-extensions" class="form-label">Model File Extensions</label>
                                 <input type="text" class="form-control" id="model-extensions" name="model_extensions">
                                 <div class="form-text">Comma-separated list of file extensions to recognize as models</div>
                             </div>
                             <div class="mb-3">
                                 <label for="app-port" class="form-label">Application Port</label>
-                                <input type="number" class="form-control" id="app-port" name="app_port">
-                                <div class="form-text">Port for the web interface (requires restart)</div>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="app-port" name="app_port">
+                                    <button class="btn btn-danger" type="button" id="stop-server-btn" title="Stop Server">
+                                        <i class="bi bi-power"></i> Stop
+                                    </button>
+                                </div>
+                                <div class="form-text">Port for the web interface (requires manual restart)</div>
                             </div>
                             <div class="mb-3">
                                 <div class="switch-label">
@@ -247,6 +268,9 @@
                                                 <i class="bi bi-arrow-repeat"></i> Sync Now
                                             </button>
                                             <small class="text-muted ms-2">Synchronize your tool with AI Model Library</small>
+                                            <div class="audit-trail mt-2" style="font-size: 0.85em; max-height: 150px; overflow-y: auto; border-left: 3px solid #e9ecef; padding-left: 10px; margin-top: 10px;">
+                                                <!-- Audit trail entries will be displayed here -->
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -346,6 +370,7 @@
                 
                 // Populate form fields
                 document.getElementById('model-library-path').value = config.paths.model_library || '';
+                document.getElementById('draft-download-area').value = config.paths.draft_download_area || '';
                 document.getElementById('model-extensions').value = (config.models.extensions || []).join(',');
                 document.getElementById('app-port').value = config.app.port || 8002;
                 document.getElementById('debug-mode').checked = config.app.debug || false;
@@ -522,6 +547,25 @@
                 const syncButtonContainer = repositoryItem.querySelector('.sync-button-container');
                 if (syncButtonContainer) {
                     syncButtonContainer.style.display = useSymlink ? 'block' : 'none';
+                    
+                    // Load audit trail if it exists
+                    if (repository.audit_trail && repository.audit_trail.length > 0) {
+                        const auditTrailDiv = repositoryItem.querySelector('.audit-trail');
+                        if (auditTrailDiv) {
+                            // Clear existing entries
+                            auditTrailDiv.innerHTML = '';
+                            
+                            // Add each audit entry
+                            repository.audit_trail.forEach(entry => {
+                                const auditEntry = document.createElement('div');
+                                auditEntry.className = 'audit-entry mb-1 text-muted';
+                                auditEntry.style.borderBottom = '1px dotted #e9ecef';
+                                auditEntry.style.paddingBottom = '5px';
+                                auditEntry.textContent = entry;
+                                auditTrailDiv.appendChild(auditEntry);
+                            });
+                        }
+                    }
                 }
             }
             
@@ -544,6 +588,8 @@
                 syncNowBtn.addEventListener('click', function() {
                     const repoName = repositoryItem.querySelector('.repository-name').value;
                     const repoLocation = repositoryItem.querySelector('.repository-location').value;
+                    const requireParentDir = repositoryItem.querySelector('.require-parent-directory').checked;
+                    const understandsShards = repositoryItem.querySelector('.understands-shards').checked;
                     
                     if (!repoName || !repoLocation) {
                         alert('Repository name and location must be set before syncing.');
@@ -563,7 +609,9 @@
                         },
                         body: JSON.stringify({
                             name: repoName,
-                            location: repoLocation
+                            location: repoLocation,
+                            require_parent_directory: requireParentDir,
+                            understands_shards: understandsShards
                         })
                     })
                     .then(response => response.json())
@@ -573,7 +621,30 @@
                         this.disabled = false;
                         
                         if (data.success) {
-                            alert(`Successfully synchronized ${data.count} models for ${repoName}`);
+                            // Update the audit trail
+                            const auditTrailDiv = repositoryItem.querySelector('.audit-trail');
+                            if (auditTrailDiv) {
+                                // Clear existing audit trail
+                                auditTrailDiv.innerHTML = '';
+                                
+                                // Add the new audit entry
+                                const auditEntry = document.createElement('div');
+                                auditEntry.className = 'audit-entry mb-1 text-muted';
+                                auditEntry.style.borderBottom = '1px dotted #e9ecef';
+                                auditEntry.style.paddingBottom = '5px';
+                                auditEntry.textContent = data.audit;
+                                auditTrailDiv.appendChild(auditEntry);
+                            }
+                            
+                            // Show success message
+                            let message = `Successfully synchronized ${data.count} models for ${repoName}`;
+                            if (data.skipped > 0) {
+                                message += `, skipped ${data.skipped} existing symlinks`;
+                            }
+                            if (data.sharded > 0 && !understandsShards) {
+                                message += `, ignored ${data.sharded} sharded models`;
+                            }
+                            alert(message);
                         } else {
                             alert(`Error: ${data.error}`);
                         }
@@ -624,6 +695,16 @@
                     understands_shards: item.querySelector('.understands-shards').checked
                 };
                 
+                // Preserve audit trail if it exists
+                const auditTrailDiv = item.querySelector('.audit-trail');
+                if (auditTrailDiv && auditTrailDiv.children.length > 0) {
+                    const auditTrail = [];
+                    Array.from(auditTrailDiv.children).forEach(entry => {
+                        auditTrail.push(entry.textContent);
+                    });
+                    repository.audit_trail = auditTrail;
+                }
+                
                 repositories.push(repository);
             });
             
@@ -635,6 +716,7 @@
             try {
                 // Get form values
                 const modelLibraryPath = document.getElementById('model-library-path').value;
+                const draftDownloadArea = document.getElementById('draft-download-area').value;
                 const modelExtensions = document.getElementById('model-extensions').value.split(',').map(ext => ext.trim()).filter(ext => ext);
                 const appPort = parseInt(document.getElementById('app-port').value);
                 const debugMode = document.getElementById('debug-mode').checked;
@@ -647,6 +729,7 @@
                 // Create config object with dot notation paths as expected by the API
                 const config = {
                     'paths.model_library': modelLibraryPath,
+                    'paths.draft_download_area': draftDownloadArea,
                     'models.extensions': modelExtensions,
                     'app.port': appPort,
                     'app.debug': debugMode,
@@ -829,7 +912,18 @@
                 directoryBrowserModal.show();
             });
             
+            document.getElementById('browse-draft-btn').addEventListener('click', () => {
+                browseDirectory('/');
+                currentRepositoryItem = null;
+                directoryBrowserModal.show();
+                // Set a flag to indicate we're browsing for the draft area
+                document.getElementById('select-directory-btn').dataset.target = 'draft-download-area';
+            });
+            
             document.getElementById('select-directory-btn').addEventListener('click', () => {
+                const selectButton = document.getElementById('select-directory-btn');
+                const target = selectButton.dataset.target || 'model-library-path';
+                
                 if (currentRepositoryItem) {
                     const locationInput = currentRepositoryItem.querySelector('.repository-location');
                     locationInput.value = currentBrowsePath;
@@ -848,13 +942,39 @@
                         }
                     }
                 } else {
-                    document.getElementById('model-library-path').value = currentBrowsePath;
+                    // Set the value based on the target
+                    document.getElementById(target).value = currentBrowsePath;
                 }
+                
+                // Reset the target data attribute
+                selectButton.dataset.target = '';
                 directoryBrowserModal.hide();
             });
             
             document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
             document.getElementById('reset-db-btn').addEventListener('click', resetDatabase);
+            
+            // Stop server button
+            document.getElementById('stop-server-btn').addEventListener('click', function() {
+                if (confirm('Are you sure you want to stop the server? You will need to manually restart it.')) {
+                    fetch('/api/server/stop', {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Server is shutting down.');
+                        } else {
+                            alert('Failed to stop server: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Server shutdown initiated.');
+                    });
+                }
+            });
+
             document.getElementById('add-repository-btn').addEventListener('click', () => {
                 // Get a new repository with default values
                 const modelLibraryPath = document.getElementById('model-library-path').value;

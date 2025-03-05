@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger('config')
 
 # Application version
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 # Configuration file path
 CONFIG_FILE = "settings.json"
@@ -28,6 +28,7 @@ DEFAULT_CONFIG = {
     },
     "paths": {
         "model_library": "/Volumes/Library_Bolt/AI Model Library",
+        "draft_download_area": os.path.join(os.path.expanduser("~"), "Downloads", "LLM_Downloads"),
         "database": "models.db"
     },
     "models": {
@@ -166,3 +167,10 @@ def get_app_version():
 
 def get_tool_repositories():
     return get_setting('tool_repositories', [])
+
+def get_draft_download_area():
+    """Get the path to the draft download area."""
+    path = get_setting('paths.draft_download_area')
+    # Ensure the directory exists
+    os.makedirs(path, exist_ok=True)
+    return path

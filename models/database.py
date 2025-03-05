@@ -5,6 +5,7 @@ Handles model storage, retrieval, and management in the SQLite database.
 
 import sqlite3
 import json
+import os
 from pathlib import Path
 from datetime import datetime
 import traceback
@@ -145,22 +146,66 @@ def add_model(name, framework, path, model_config=None, size_override=None):
         traceback.print_exc()
         return {"error": str(e)}, 500
 
-def delete_model(model_id):
-    """Delete a model from the database by ID."""
+def delete_model(model_id, delete_files=False):
+    """Delete a model from the database by ID.
+    
+    Args:
+        model_id: The ID of the model to delete
+        delete_files: If True, also delete the underlying files
+    """
     try:
         conn = sqlite3.connect(config.get_database_path())
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
-        # Check if model exists
-        cursor.execute("SELECT id FROM models WHERE id = ?", (model_id,))
-        if not cursor.fetchone():
+        # Check if model exists and get its path
+        cursor.execute("SELECT id, path, config FROM models WHERE id = ?", (model_id,))
+        model = cursor.fetchone()
+        if not model:
             conn.close()
             return {"error": f"Model not found with ID: {model_id}"}, 404
         
-        # Delete the model
+        model_path = model['path']
+        model_config = None
+        if model['config']:
+            try:
+                model_config = json.loads(model['config'])
+            except json.JSONDecodeError:
+                model_config = {}
+        
+        # Delete the model from the database
         cursor.execute("DELETE FROM models WHERE id = ?", (model_id,))
         conn.commit()
         conn.close()
+        
+        # If requested, delete the underlying files
+        if delete_files and model_path and not model_path.startswith('ollama://'):
+            try:
+                # Check if this is a model directory or a single file
+                model_dir = None
+                
+                # If this is a model directory (contains model_dir in config)
+                if model_config and 'model_dir' in model_config and 'publisher' in model_config:
+                    # The path to the parent directory containing the model
+                    publisher_name = model_config['publisher']
+                    model_name = model_config['model_dir']
+                    model_library = config.get_model_library_path()
+                    model_dir = Path(os.path.join(model_library, publisher_name, model_name))
+                else:
+                    # This is a single file or we don't have enough info
+                    file_path = Path(model_path)
+                    if file_path.exists() and file_path.is_file():
+                        # Delete the file
+                        os.remove(file_path)
+                        return {"message": f"Model {model_id} and its file deleted successfully"}, 200
+                
+                # If we found a model directory, delete it
+                if model_dir and model_dir.exists() and model_dir.is_dir():
+                    import shutil
+                    shutil.rmtree(model_dir)
+                    return {"message": f"Model {model_id} and its directory deleted successfully"}, 200
+            except Exception as e:
+                return {"message": f"Model {model_id} deleted from database, but error deleting files: {str(e)}"}, 200
         
         return {"message": f"Model {model_id} deleted successfully"}, 200
     except Exception as e:

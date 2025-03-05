@@ -15,12 +15,13 @@ import glob
 import re
 import sqlite3
 import json
+import datetime
 
 # Import modules
 from models.database import init_db, get_all_models, add_model, delete_model, reset_database
 from models.detection import scan_directory, is_shard_file, extract_base_name
 from models.ollama import scan_ollama_models
-from models.huggingface import search_models, get_model_details, download_model, get_popular_models
+from models.huggingface import search_models, get_model_details, download_model, get_popular_models, get_model_versions, get_download_status, cancel_download, move_model_to_library
 from utils.system import get_system_info
 from utils.file_browser import browse_directories
 from utils.model_scanner import scan_for_models
@@ -938,11 +939,67 @@ def hf_download_model():
     model_id = data.get('model_id')
     filename = data.get('filename', None)
     revision = data.get('revision', None)
+    revision_type = data.get('revision_type', None)  # 'tag' or 'branch'
     
     if not model_id:
         return jsonify({"error": "Model ID is required"}), 400
     
-    result, status_code = download_model(model_id, filename, revision)
+    result, status_code = download_model(model_id, filename, revision, revision_type)
+    return jsonify(result), status_code
+
+@app.route('/api/huggingface/versions', methods=['GET'])
+def hf_get_model_versions():
+    """Get available versions (tags, branches) for a specific model."""
+    model_id = request.args.get('model_id')
+    if not model_id:
+        return jsonify({"error": "Model ID is required"}), 400
+    
+    result, status_code = get_model_versions(model_id)
+    return jsonify(result), status_code
+
+@app.route('/api/huggingface/download/status', methods=['GET'])
+def hf_get_download_status():
+    """Get the status of a download."""
+    download_id = request.args.get('download_id')
+    if not download_id:
+        return jsonify({"error": "Download ID is required"}), 400
+    
+    result, status_code = get_download_status(download_id)
+    return jsonify(result), status_code
+
+@app.route('/api/huggingface/download/cancel', methods=['POST'])
+def hf_cancel_download():
+    """Cancel a download."""
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    download_id = data.get('download_id')
+    if not download_id:
+        return jsonify({"error": "Download ID is required"}), 400
+    
+    result, status_code = cancel_download(download_id)
+    return jsonify(result), status_code
+
+@app.route('/api/huggingface/move-to-library', methods=['POST'])
+def hf_move_to_library():
+    """Move a model from the draft download area to the model library."""
+    data = request.json
+    if not data or 'model_id' not in data:
+        return jsonify({"error": "Model ID is required"}), 400
+    
+    model_id = data['model_id']
+    result, status_code = move_model_to_library(model_id)
+    
+    # If successful, trigger a scan of the model library
+    if status_code == 200 and result.get('success'):
+        # Get the destination directory
+        dest_dir = result.get('destination')
+        if dest_dir and os.path.exists(dest_dir):
+            # Scan the directory for models
+            scan_result = scan_directory(dest_dir)
+            result['scan_result'] = scan_result
+    
     return jsonify(result), status_code
 
 @app.route('/api/huggingface/popular', methods=['GET'])
@@ -951,6 +1008,79 @@ def hf_get_popular_models():
     limit = request.args.get('limit', 20, type=int)
     result, status_code = get_popular_models(limit)
     return jsonify(result), status_code
+
+# API endpoint for server status
+@app.route('/api/status', methods=['GET'])
+def server_status():
+    """Enhanced endpoint to check if the server is running with detailed status information."""
+    import platform
+    import psutil
+    import os
+    
+    # Get process info
+    process = psutil.Process(os.getpid())
+    
+    try:
+        return jsonify({
+            "status": "ok",
+            "version": config.get_app_version(),
+            "timestamp": datetime.datetime.now().isoformat(),
+            "uptime": round((datetime.datetime.now() - datetime.datetime.fromtimestamp(process.create_time())).total_seconds()),
+            "port": config.get_port(),
+            "debug": config.get_debug_mode(),
+            "platform": platform.system(),
+            "python_version": platform.python_version()
+        })
+    except Exception as e:
+        # Fallback to simple response if detailed info fails
+        return jsonify({
+            "status": "ok",
+            "version": config.get_app_version(),
+            "timestamp": datetime.datetime.now().isoformat()
+        })
+
+
+@app.route('/api/server/stop', methods=['POST'])
+def stop_server():
+    """Stop the server gracefully.
+    
+    This endpoint triggers a graceful shutdown of the current server.
+    """
+    import os
+    import threading
+    import time
+    
+    # Function to run the stop process after response is sent
+    def run_stop():
+        try:
+            # Give time for the response to be sent
+            time.sleep(1)
+            # Log success and exit
+            print("Shutting down server process")
+            os._exit(0)  # Force immediate exit
+        except Exception as e:
+            print(f"Error during server shutdown: {str(e)}")
+    
+    try:
+        # Start the stop process in a separate thread
+        # This ensures the response is sent before the server exits
+        stop_thread = threading.Thread(target=run_stop)
+        stop_thread.daemon = True
+        stop_thread.start()
+        
+        # Return success response
+        return jsonify({
+            "success": True, 
+            "message": "Server shutdown initiated", 
+            "details": "The server will shut down momentarily."
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False, 
+            "error": str(e), 
+            "message": "Failed to stop server."
+        })
 
 if __name__ == '__main__':
     import argparse
