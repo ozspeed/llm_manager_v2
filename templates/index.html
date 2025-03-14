@@ -118,59 +118,57 @@
             </div>
         </div>
 
-        <!-- Actions -->
+        <!-- Library Actions -->
         <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-secondary text-white">
-                        <h5 class="mb-0">Add New Model</h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="add-model-form">
-                            <div class="mb-3">
-                                <label for="model-source-dir" class="form-label">Where should I look?</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="model-source-dir" required>
-                                    <button class="btn btn-outline-secondary" type="button" id="browse-source-dir">
-                                        <i class="bi bi-folder2-open"></i> Browse
-                                    </button>
-                                </div>
-                                <div class="form-text">Select the directory to scan for models</div>
-                            </div>
-                            <button type="submit" class="btn btn-primary">Add Model</button>
-                        </form>
-                        <div id="add-model-status" class="mt-3"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
+            <div class="col-md-12">
                 <div class="card">
                     <div class="card-header bg-success text-white">
                         <h5 class="mb-0">Library Actions</h5>
                     </div>
                     <div class="card-body">
                         <p>Manage your model library and database.</p>
-                        <div class="mb-3">
-                            <label for="library-path" class="form-label">Library Path</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="library-path" readonly>
-                                <a href="/settings" class="btn btn-outline-secondary">
-                                    <i class="bi bi-gear"></i> Change in Settings
-                                </a>
+                        
+                        <!-- Library Path -->
+                        <div class="mb-4">
+                            <p class="mb-0">Current Library Path: <span id="library-path"></span></p>
+                        </div>
+
+                        <div class="row">
+                            <!-- Add New Model -->
+                            <div class="col-md-6 mb-4">
+                                <h6 class="mb-3">Add New Model</h6>
+                                <form id="add-model-form">
+                                    <div class="mb-3">
+                                        <label for="model-source-dir" class="form-label">Model Location</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="model-source-dir" required>
+                                            <button class="btn btn-outline-secondary" type="button" id="browse-source-dir">
+                                                <i class="bi bi-folder2-open"></i> Browse
+                                            </button>
+                                        </div>
+                                        <div class="form-text">Select the directory containing your model files</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Add Model</button>
+                                </form>
+                                <div id="add-model-status" class="mt-3"></div>
                             </div>
-                            <div class="form-text">Path is configured in Settings</div>
+
+                            <!-- Scan Library -->
+                            <div class="col-md-6 mb-4">
+                                <h6 class="mb-3">Scan Library</h6>
+                                <div class="mb-3 form-check">
+                                    <input type="checkbox" class="form-check-input" id="include-ollama" checked>
+                                    <label class="form-check-label" for="include-ollama">Include Ollama models</label>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button id="scan-library-btn" class="btn btn-success">Scan Library</button>
+                                    <button id="reset-db-btn" class="btn btn-outline-danger">
+                                        <i class="bi bi-trash"></i> Reset Database
+                                    </button>
+                                </div>
+                                <div id="scan-results" class="mt-3"></div>
+                            </div>
                         </div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="include-ollama" checked>
-                            <label class="form-check-label" for="include-ollama">Include Ollama models</label>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button id="scan-library-btn" class="btn btn-success">Scan Library</button>
-                            <button id="reset-db-btn" class="btn btn-danger">
-                                <i class="bi bi-trash"></i> Reset Database
-                            </button>
-                        </div>
-                        <div id="scan-results" class="mt-3"></div>
                     </div>
                 </div>
             </div>
@@ -942,7 +940,7 @@
         // Scan library
         async function scanLibrary() {
             // Get the path from the read-only field (which is populated from settings)
-            const path = document.getElementById('library-path').value;
+            const path = document.getElementById('library-path').textContent;
             const includeOllama = document.getElementById('include-ollama').checked;
             const resultsContainer = document.getElementById('scan-results');
             
@@ -1059,7 +1057,7 @@
                 const data = await response.json();
                 
                 // Update the library path in the scan form (read-only display)
-                document.getElementById('library-path').value = data.paths.model_library || 'No library path configured';
+                document.getElementById('library-path').textContent = data.paths.model_library || 'No library path configured';
                 
                 // Update the include Ollama checkbox (read-only display)
                 document.getElementById('include-ollama').checked = data.frameworks.ollama.enabled;
