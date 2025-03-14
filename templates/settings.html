@@ -100,12 +100,7 @@
                             Home
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link d-flex align-items-center gap-2" href="/huggingface">
-                            <i class="bi bi-cloud-download"></i>
-                            Hugging Face
-                        </a>
-                    </li>
+
                     <li class="nav-item">
                         <a class="nav-link active d-flex align-items-center gap-2" href="/settings">
                             <i class="bi bi-gear"></i>
@@ -139,16 +134,7 @@
                                 </div>
                                 <div class="form-text">Directory where your model files are stored</div>
                             </div>
-                            <div class="mb-3">
-                                <label for="draft-download-area" class="form-label">Draft Download Area</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="draft-download-area" name="draft_download_area">
-                                    <button class="btn btn-outline-secondary" type="button" id="browse-draft-btn">
-                                        <i class="bi bi-folder2-open"></i> Browse
-                                    </button>
-                                </div>
-                                <div class="form-text">Staging area for downloaded models before they're moved to the library</div>
-                            </div>
+
                             <div class="mb-3">
                                 <label for="model-extensions" class="form-label">Model File Extensions</label>
                                 <input type="text" class="form-control" id="model-extensions" name="model_extensions">
@@ -189,6 +175,9 @@
                                 <input type="text" class="form-control" id="ollama-repos" name="ollama_repos">
                                 <div class="form-text">Comma-separated list of Ollama repositories to scan</div>
                             </div>
+
+
+
                         </form>
                     </div>
                 </div>

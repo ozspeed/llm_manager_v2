@@ -8,7 +8,7 @@ from flask import Flask, render_template, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 # Import configuration
-import config
+from models import config
 import os
 import shutil
 import glob
@@ -21,7 +21,7 @@ import datetime
 from models.database import init_db, get_all_models, add_model, delete_model, reset_database
 from models.detection import scan_directory, is_shard_file, extract_base_name
 from models.ollama import scan_ollama_models
-from models.huggingface import search_models, get_model_details, download_model, get_popular_models, get_model_versions, get_download_status, cancel_download, move_model_to_library
+
 from utils.system import get_system_info
 from utils.file_browser import browse_directories
 from utils.model_scanner import scan_for_models
@@ -38,9 +38,7 @@ init_db()
 def index():
     return render_template('index.html')
 
-@app.route('/huggingface')
-def huggingface():
-    return render_template('huggingface.html')
+
 
 @app.route('/settings')
 def settings():
@@ -365,7 +363,9 @@ def confirm_overwrite():
 @app.route('/api/config', methods=['GET'])
 def get_config():
     """Get the current configuration."""
-    return jsonify(config.config)
+    if config._settings is None:
+        config.load_settings()
+    return jsonify(config._settings)
 
 # API endpoint to browse directories
 @app.route('/api/browse', methods=['GET'])
@@ -383,11 +383,15 @@ def update_config():
         return jsonify({"error": "No data provided"}), 400
     
     try:
-        # Update each setting provided
-        for path, value in data.items():
-            config.set_setting(path, value)
-        
-        return jsonify({"success": True, "message": "Configuration updated", "config": config.config})
+        # Update all settings at once
+        if config.update_settings(data):
+            return jsonify({
+                "success": True, 
+                "message": "Configuration updated", 
+                "config": config._settings
+            })
+        else:
+            return jsonify({"error": "Failed to update configuration"}), 500
     except Exception as e:
         return jsonify({"error": f"Failed to update configuration: {str(e)}"}), 500
 
@@ -912,102 +916,9 @@ def confirm_overwrite_multiple():
         "errors": errors
     })
 
-@app.route('/api/huggingface/search', methods=['GET'])
-def hf_search_models():
-    """Search for models on Hugging Face Hub."""
-    query = request.args.get('query', '')
-    task = request.args.get('task', None)
-    library = request.args.get('library', None)
-    limit = request.args.get('limit', 50, type=int)
-    
-    result, status_code = search_models(query, task, library, limit)
-    return jsonify(result), status_code
 
-@app.route('/api/huggingface/model/<path:model_id>', methods=['GET'])
-def hf_get_model_details(model_id):
-    """Get detailed information about a specific model."""
-    result, status_code = get_model_details(model_id)
-    return jsonify(result), status_code
 
-@app.route('/api/huggingface/download', methods=['POST'])
-def hf_download_model():
-    """Download a model from Hugging Face Hub."""
-    data = request.json
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
-    
-    model_id = data.get('model_id')
-    filename = data.get('filename', None)
-    revision = data.get('revision', None)
-    revision_type = data.get('revision_type', None)  # 'tag' or 'branch'
-    
-    if not model_id:
-        return jsonify({"error": "Model ID is required"}), 400
-    
-    result, status_code = download_model(model_id, filename, revision, revision_type)
-    return jsonify(result), status_code
 
-@app.route('/api/huggingface/versions', methods=['GET'])
-def hf_get_model_versions():
-    """Get available versions (tags, branches) for a specific model."""
-    model_id = request.args.get('model_id')
-    if not model_id:
-        return jsonify({"error": "Model ID is required"}), 400
-    
-    result, status_code = get_model_versions(model_id)
-    return jsonify(result), status_code
-
-@app.route('/api/huggingface/download/status', methods=['GET'])
-def hf_get_download_status():
-    """Get the status of a download."""
-    download_id = request.args.get('download_id')
-    if not download_id:
-        return jsonify({"error": "Download ID is required"}), 400
-    
-    result, status_code = get_download_status(download_id)
-    return jsonify(result), status_code
-
-@app.route('/api/huggingface/download/cancel', methods=['POST'])
-def hf_cancel_download():
-    """Cancel a download."""
-    data = request.json
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
-    
-    download_id = data.get('download_id')
-    if not download_id:
-        return jsonify({"error": "Download ID is required"}), 400
-    
-    result, status_code = cancel_download(download_id)
-    return jsonify(result), status_code
-
-@app.route('/api/huggingface/move-to-library', methods=['POST'])
-def hf_move_to_library():
-    """Move a model from the draft download area to the model library."""
-    data = request.json
-    if not data or 'model_id' not in data:
-        return jsonify({"error": "Model ID is required"}), 400
-    
-    model_id = data['model_id']
-    result, status_code = move_model_to_library(model_id)
-    
-    # If successful, trigger a scan of the model library
-    if status_code == 200 and result.get('success'):
-        # Get the destination directory
-        dest_dir = result.get('destination')
-        if dest_dir and os.path.exists(dest_dir):
-            # Scan the directory for models
-            scan_result = scan_directory(dest_dir)
-            result['scan_result'] = scan_result
-    
-    return jsonify(result), status_code
-
-@app.route('/api/huggingface/popular', methods=['GET'])
-def hf_get_popular_models():
-    """Get a list of popular models from Hugging Face Hub."""
-    limit = request.args.get('limit', 20, type=int)
-    result, status_code = get_popular_models(limit)
-    return jsonify(result), status_code
 
 # API endpoint for server status
 @app.route('/api/status', methods=['GET'])
