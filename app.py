@@ -21,6 +21,7 @@ import datetime
 from models.database import init_db, get_all_models, add_model, delete_model, reset_database
 from models.detection import scan_directory, is_shard_file, extract_base_name
 from models.ollama import scan_ollama_models
+from models.huggingface import search_models, download_model, move_model_to_library, list_draft_models, get_model_files
 
 from utils.system import get_system_info
 from utils.file_browser import browse_directories
@@ -38,7 +39,10 @@ init_db()
 def index():
     return render_template('index.html')
 
-
+@app.route('/huggingface')
+def huggingface():
+    """Render the Hugging Face page."""
+    return render_template('huggingface.html')
 
 @app.route('/settings')
 def settings():
@@ -1021,6 +1025,156 @@ def stop_server():
             "error": str(e), 
             "message": "Failed to stop server."
         })
+
+# Hugging Face API endpoints
+@app.route('/api/huggingface/search', methods=['GET'])
+def hf_search():
+    """Search for models on Hugging Face.
+    
+    Query parameters:
+    - query: Search query
+    - model_type: Type of model to search for (optional)
+    - limit: Maximum number of results to return (optional, default: 50)
+    """
+    try:
+        query = request.args.get('query', '')
+        model_type = request.args.get('model_type', None)
+        limit = int(request.args.get('limit', 50))
+        
+        if not query:
+            return jsonify({
+                "success": False,
+                "error": "Search query is required"
+            }), 400
+        
+        results = search_models(query, model_type, limit)
+        return jsonify({
+            "success": True,
+            "results": results,
+            "count": len(results)
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/huggingface/download', methods=['POST'])
+def hf_download():
+    """Download a model from Hugging Face to the draft download area.
+    
+    JSON parameters:
+    - model_id: Hugging Face model ID (e.g., 'TheBloke/Llama-2-7B-GGUF')
+    - filename: Specific filename to download (optional)
+    """
+    try:
+        data = request.json
+        model_id = data.get('model_id')
+        filename = data.get('filename')
+        
+        if not model_id:
+            return jsonify({
+                "success": False,
+                "error": "Model ID is required"
+            }), 400
+        
+        result = download_model(model_id, filename)
+        if not result["success"]:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/huggingface/draft-models', methods=['GET'])
+def hf_list_draft_models():
+    """List all models in the draft download area."""
+    try:
+        models = list_draft_models()
+        return jsonify({
+            "success": True,
+            "models": models,
+            "count": len(models)
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/huggingface/files', methods=['GET'])
+def hf_get_files():
+    """Get files for a specific model on Hugging Face.
+    
+    Query parameters:
+    - model_id: Hugging Face model ID (e.g., 'TheBloke/Llama-2-7B-GGUF')
+    """
+    model_id = request.args.get('model_id')
+    if not model_id:
+        return jsonify({"error": "No model_id provided"}), 400
+    
+    result = get_model_files(model_id)
+    return jsonify(result)
+
+@app.route('/api/huggingface/move-to-library', methods=['POST'])
+def hf_move_to_library():
+    """Move a model from the draft download area to the model library.
+    
+    JSON parameters:
+    - filename: Name of the file to move
+    """
+    try:
+        data = request.json
+        filename = data.get('filename')
+        
+        if not filename:
+            return jsonify({
+                "success": False,
+                "error": "Filename is required"
+            }), 400
+        
+        result = move_model_to_library(filename)
+        if not result["success"]:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/huggingface/delete-draft', methods=['POST'])
+def hf_delete_draft():
+    """Delete a model from the draft download area without adding it to the library.
+    
+    JSON parameters:
+    - filename: Name of the file to delete
+    """
+    try:
+        data = request.json
+        filename = data.get('filename')
+        
+        if not filename:
+            return jsonify({
+                "success": False,
+                "error": "Filename is required"
+            }), 400
+        
+        from models.huggingface import delete_draft_model
+        result = delete_draft_model(filename)
+        if not result["success"]:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 if __name__ == '__main__':
     import argparse

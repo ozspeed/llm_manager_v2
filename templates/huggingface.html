@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hugging Face Models - LLM Model Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .model-card {
+            transition: all 0.3s;
+        }
+        .model-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+        }
+        .sidebar .nav-link {
+            color: #333;
+            border-radius: 0;
+            padding: 0.5rem 1rem;
+        }
+        .sidebar .nav-link.active {
+            background-color: #0d6efd;
+            color: white;
+        }
+        .sidebar .nav-link:hover:not(.active) {
+            background-color: #e9ecef;
+        }
+        .sidebar-heading {
+            padding: 0.875rem 1.25rem;
+            font-size: 1.2rem;
+        }
+        .main-content {
+            padding: 1.5rem;
+        }
+        .tag-badge {
+            font-size: 0.75em;
+            margin-right: 0.25rem;
+        }
+        .draft-model-card {
+            border-left: 4px solid #28a745;
+        }
+        
+        /* Removed draft models styles */
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 col-lg-2 d-md-block sidebar p-0">
+                <div class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1">
+                    <span>LLM Manager</span>
+                </div>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-2" href="/">
+                            <i class="bi bi-house"></i>
+                            Home
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link active d-flex align-items-center gap-2" href="/huggingface">
+                            <i class="bi bi-cloud-download"></i>
+                            Hugging Face
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-2" href="/settings">
+                            <i class="bi bi-gear"></i>
+                            Settings
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main content -->
+            <div class="col-md-10 col-lg-10 main-content">
+                <header class="pb-3 mb-4 border-bottom">
+                    <h1 class="display-5 fw-bold">Hugging Face Models</h1>
+                    <p class="lead">Search and download models from Hugging Face</p>
+                </header>
+                
+                <!-- API Configuration Alert -->
+                <div id="api-config-alert" class="alert alert-warning alert-dismissible fade show mb-4 d-none" role="alert">
+                    <strong><i class="bi bi-exclamation-triangle"></i> Hugging Face API Not Configured</strong>
+                    <p class="mb-0">To download models, you need to enable the Hugging Face integration and add your API token in the settings.</p>
+                    <div class="mt-2">
+                        <a href="/settings" class="btn btn-sm btn-primary">Go to Settings</a>
+                        <a href="https://huggingface.co/settings/tokens" target="_blank" class="btn btn-sm btn-outline-secondary">Get API Token</a>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+
+                <!-- Search Section -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">Search Models</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="search-form" class="mb-4">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <input type="text" id="search-query" class="form-control" placeholder="Search for models (e.g., llama, mistral, gguf)">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <select id="model-type" class="form-select">
+                                                <option value="">All model types</option>
+                                                <option value="text-generation">Text Generation</option>
+                                                <option value="text-classification">Text Classification</option>
+                                                <option value="token-classification">Token Classification</option>
+                                                <option value="question-answering">Question Answering</option>
+                                                <option value="summarization">Summarization</option>
+                                                <option value="translation">Translation</option>
+                                                <option value="conversational">Conversational</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <button type="submit" class="btn btn-primary w-100">
+                                                <i class="bi bi-search"></i> Search
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                                <div id="search-status" class="alert alert-info d-none">
+                                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    Searching for models...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div class="row mb-4">
+                    <div class="col-md-12"> <!-- Changed from col-md-8 to col-md-12 to take full width -->
+                        <div class="card">
+                            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Search Results</h5>
+                                <span id="result-count" class="badge bg-light text-dark">0 models found</span>
+                            </div>
+                            <div class="card-body">
+                                <div id="search-results" class="row g-3">
+                                    <!-- Search results will be displayed here -->
+                                    <div class="col-12 text-center text-muted py-5">
+                                        <i class="bi bi-search" style="font-size: 2rem;"></i>
+                                        <p class="mt-3">Search for models to see results</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Details Modal -->
+    <div class="modal fade" id="model-details-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="model-details-title">Model Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="model-details-body">
+                    <!-- Model details will be displayed here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="download-model-btn">Download Model</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download Options Modal -->
+    <div class="modal fade" id="download-options-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Download Options</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="file-selector" class="form-label">Select file to download</label>
+                        <select class="form-select" id="file-selector">
+                            <!-- File options will be populated here -->
+                        </select>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle-fill"></i>
+                        Files will be downloaded to your draft area. You can move them to your model library after download.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirm-download-btn">
+                        <i class="bi bi-cloud-download"></i> Download
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Format bytes to human-readable format
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+        // Global variables
+        let currentModelId = null;
+        let currentModelFiles = [];
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load draft models on page load
+            loadDraftModels();
+            
+            // Set up event listeners
+            document.getElementById('search-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                searchModels();
+            });
+            
+            document.getElementById('download-model-btn').addEventListener('click', function() {
+                showDownloadOptions();
+            });
+            
+            document.getElementById('confirm-download-btn').addEventListener('click', function() {
+                downloadSelectedFile();
+            });
+        });
+        
+        // Search for models
+        async function searchModels() {
+            const query = document.getElementById('search-query').value.trim();
+            const modelType = document.getElementById('model-type').value;
+            
+            if (!query) {
+                alert('Please enter a search query');
+                return;
+            }
+            
+            // Show loading status
+            const searchStatus = document.getElementById('search-status');
+            searchStatus.classList.remove('d-none');
+            
+            // Clear previous results
+            const resultsContainer = document.getElementById('search-results');
+            resultsContainer.innerHTML = '';
+            
+            try {
+                const response = await fetch(`/api/huggingface/search?query=${encodeURIComponent(query)}&model_type=${encodeURIComponent(modelType)}`);
+                const data = await response.json();
+                
+                // Hide loading status
+                searchStatus.classList.add('d-none');
+                
+                // Update result count
+                document.getElementById('result-count').textContent = `${data.count} models found`;
+                
+                if (data.success && data.results.length > 0) {
+                    // Display results
+                    data.results.forEach(model => {
+                        resultsContainer.appendChild(createModelCard(model));
+                    });
+                } else {
+                    // No results found
+                    resultsContainer.innerHTML = `
+                        <div class="col-12 text-center text-muted py-5">
+                            <i class="bi bi-emoji-frown" style="font-size: 2rem;"></i>
+                            <p class="mt-3">No models found for "${query}"</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error searching models:', error);
+                searchStatus.classList.add('d-none');
+                resultsContainer.innerHTML = `
+                    <div class="col-12 text-center text-danger py-5">
+                        <i class="bi bi-exclamation-triangle" style="font-size: 2rem;"></i>
+                        <p class="mt-3">Error searching models: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Create a model card element
+        function createModelCard(model) {
+            const card = document.createElement('div');
+            card.className = 'col-md-6 col-lg-4';
+            
+            // Format tags
+            const tags = model.tags ? model.tags.map(tag => 
+                `<span class="badge bg-secondary tag-badge">${tag}</span>`
+            ).join('') : '';
+            
+            card.innerHTML = `
+                <div class="card model-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">${model.name}</h5>
+                        <h6 class="card-subtitle mb-2 text-muted">${model.author}</h6>
+                        <div class="mb-2">
+                            ${tags}
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="badge bg-info">
+                                <i class="bi bi-download"></i> ${model.downloads.toLocaleString()}
+                            </span>
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-heart"></i> ${model.likes.toLocaleString()}
+                            </span>
+                        </div>
+                        ${model.pipeline_tag ? 
+                            `<div class="mb-2">
+                                <span class="badge bg-primary">${model.pipeline_tag}</span>
+                            </div>` : ''
+                        }
+                    </div>
+                    <div class="card-footer bg-transparent border-top-0">
+                        <button class="btn btn-sm btn-primary view-details-btn" data-model-id="${model.id}">
+                            <i class="bi bi-info-circle"></i> Details
+                        </button>
+                        <a href="${model.url}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-box-arrow-up-right"></i> View on HF
+                        </a>
+                    </div>
+                </div>
+            `;
+            
+            // Add event listener for view details button
+            card.querySelector('.view-details-btn').addEventListener('click', function() {
+                showModelDetails(model);
+            });
+            
+            return card;
+        }
+        
+        // Show model details in modal
+        function showModelDetails(model) {
+            currentModelId = model.id;
+            
+            const modalTitle = document.getElementById('model-details-title');
+            const modalBody = document.getElementById('model-details-body');
+            
+            modalTitle.textContent = model.name;
+            
+            modalBody.innerHTML = `
+                <div class="row">
+                    <div class="col-md-8">
+                        <p><strong>Author:</strong> ${model.author}</p>
+                        <p><strong>Model ID:</strong> ${model.id}</p>
+                        <p><strong>Downloads:</strong> ${model.downloads.toLocaleString()}</p>
+                        <p><strong>Likes:</strong> ${model.likes.toLocaleString()}</p>
+                        ${model.pipeline_tag ? `<p><strong>Pipeline:</strong> ${model.pipeline_tag}</p>` : ''}
+                        ${model.last_modified ? `<p><strong>Last Modified:</strong> ${new Date(model.last_modified).toLocaleString()}</p>` : ''}
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid gap-2">
+                            <a href="${model.url}" target="_blank" class="btn btn-outline-primary">
+                                <i class="bi bi-box-arrow-up-right"></i> View on Hugging Face
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="mt-3">
+                    <h6>Tags</h6>
+                    <div>
+                        ${model.tags ? model.tags.map(tag => 
+                            `<span class="badge bg-secondary tag-badge">${tag}</span>`
+                        ).join('') : 'No tags available'}
+                    </div>
+                </div>
+                <div class="mt-3" id="model-files-loading">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        Loading model files...
+                    </div>
+                </div>
+                <div class="mt-3 d-none" id="model-files-container">
+                    <h6>Available Files</h6>
+                    <ul class="list-group" id="model-files-list">
+                        <!-- Files will be listed here -->
+                    </ul>
+                </div>
+            `;
+            
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('model-details-modal'));
+            modal.show();
+            
+            // Fetch model files
+            fetchModelFiles(model.id);
+        }
+        
+        // Fetch files for a model
+        async function fetchModelFiles(modelId) {
+            try {
+                // Show loading indicator
+                document.getElementById('model-files-loading').classList.remove('d-none');
+                document.getElementById('model-files-container').classList.add('d-none');
+                
+                // Fetch the actual files from the API
+                const response = await fetch(`/api/huggingface/files?model_id=${encodeURIComponent(modelId)}`);
+                const data = await response.json();
+                
+                // Hide loading indicator
+                document.getElementById('model-files-loading').classList.add('d-none');
+                
+                // Show files container
+                const filesContainer = document.getElementById('model-files-container');
+                filesContainer.classList.remove('d-none');
+                
+                const filesList = document.getElementById('model-files-list');
+                filesList.innerHTML = '';
+                
+                if (!data.success) {
+                    // Show error message
+                    filesList.innerHTML = `
+                        <li class="list-group-item text-danger">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            ${data.error || 'Failed to load model files'}
+                        </li>
+                    `;
+                    return;
+                }
+                
+                if (!data.files || data.files.length === 0) {
+                    // No files found
+                    filesList.innerHTML = `
+                        <li class="list-group-item text-muted">
+                            <i class="bi bi-info-circle"></i> No files found for this model
+                        </li>
+                    `;
+                    return;
+                }
+                
+                // Filter files to show only relevant ones (model files, configs, etc.)
+                const modelExtensions = [".gguf", ".ggml", ".bin", ".safetensors", ".onnx", ".pt", ".pth"];
+                const configFiles = ["config.json", "tokenizer.model", "tokenizer.json", "vocab.json", "merges.txt"];
+                
+                // Sort files by importance and filter out less relevant ones
+                const sortedFiles = data.files.sort((a, b) => {
+                    // Get file extensions
+                    const extA = a.substring(a.lastIndexOf('.'));
+                    const extB = b.substring(b.lastIndexOf('.'));
+                    
+                    // Model files come first
+                    const isModelA = modelExtensions.some(ext => a.endsWith(ext));
+                    const isModelB = modelExtensions.some(ext => b.endsWith(ext));
+                    
+                    if (isModelA && !isModelB) return -1;
+                    if (!isModelA && isModelB) return 1;
+                    
+                    // Config files come next
+                    const isConfigA = configFiles.some(file => a.endsWith(file));
+                    const isConfigB = configFiles.some(file => b.endsWith(file));
+                    
+                    if (isConfigA && !isConfigB) return -1;
+                    if (!isConfigA && isConfigB) return 1;
+                    
+                    // Sort by name
+                    return a.localeCompare(b);
+                });
+                
+                // Store the files for later use
+                currentModelFiles = sortedFiles;
+                
+                // Add files to the list with estimated file sizes
+                filesList.innerHTML = '';
+                currentModelFiles.forEach(file => {
+                    // Get just the filename without the path
+                    const filename = file.split('/').pop();
+                    
+                    // Estimate file size based on file type and name
+                    let estimatedSize = estimateFileSize(file, modelId);
+                    
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `
+                        <div>
+                            <div>${filename}</div>
+                            <small class="text-muted">${formatBytes(estimatedSize)}</small>
+                        </div>
+                        <button class="btn btn-sm btn-primary download-file-btn" data-file="${file}">
+                            <i class="bi bi-cloud-download"></i> Download
+                        </button>
+                    `;
+                    filesList.appendChild(li);
+                });
+                
+                // Add event listeners for download buttons
+                document.querySelectorAll('.download-file-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const filename = this.getAttribute('data-file');
+                        downloadFile(currentModelId, filename);
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Error fetching model files:', error);
+                document.getElementById('model-files-loading').classList.add('d-none');
+                
+                const filesContainer = document.getElementById('model-files-container');
+                filesContainer.classList.remove('d-none');
+                const filesList = document.getElementById('model-files-list');
+                filesList.innerHTML = `
+                    <li class="list-group-item text-danger">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        Error fetching model files: ${error.message}
+                    </li>
+                `;
+            }
+        }
+        
+        // Estimate file size based on file type and model name
+        function estimateFileSize(filename, modelId) {
+            // Extract file extension
+            const ext = filename.split('.').pop().toLowerCase();
+            
+            // Base size estimates in bytes
+            const sizeEstimates = {
+                'gguf': {
+                    'base': 4 * 1024 * 1024 * 1024, // 4GB for base models
+                    'q4_0': 2 * 1024 * 1024 * 1024, // 2GB for 4-bit quantized
+                    'q4_1': 2.2 * 1024 * 1024 * 1024, // 2.2GB
+                    'q5_0': 2.5 * 1024 * 1024 * 1024, // 2.5GB
+                    'q5_1': 2.7 * 1024 * 1024 * 1024, // 2.7GB
+                    'q8_0': 3.5 * 1024 * 1024 * 1024  // 3.5GB
+                },
+                'bin': 5 * 1024 * 1024 * 1024, // 5GB
+                'safetensors': 4 * 1024 * 1024 * 1024, // 4GB
+                'model': 15 * 1024 * 1024, // 15MB for tokenizer models
+                'json': 500 * 1024, // 500KB for config files
+                'txt': 100 * 1024, // 100KB for text files
+                'md': 50 * 1024 // 50KB for markdown files
+            };
+            
+            // Adjust size based on model name (7B, 13B, etc.)
+            let sizeFactor = 1.0;
+            if (modelId.includes('7b') || modelId.includes('7B')) {
+                sizeFactor = 1.0; // Base factor for 7B models
+            } else if (modelId.includes('13b') || modelId.includes('13B')) {
+                sizeFactor = 1.8; // 13B models are ~1.8x larger than 7B
+            } else if (modelId.includes('70b') || modelId.includes('70B')) {
+                sizeFactor = 10.0; // 70B models are ~10x larger than 7B
+            }
+            
+            // Check if it's a quantized model
+            let quantizationFactor = 1.0;
+            if (filename.includes('q4_0')) {
+                quantizationFactor = 0.5; // 4-bit quantization reduces size by ~50%
+            } else if (filename.includes('q4_1')) {
+                quantizationFactor = 0.55;
+            } else if (filename.includes('q5_0') || filename.includes('q5_1')) {
+                quantizationFactor = 0.65; // 5-bit quantization reduces size by ~35%
+            } else if (filename.includes('q8_0')) {
+                quantizationFactor = 0.85; // 8-bit quantization reduces size by ~15%
+            }
+            
+            // Get base size for the extension
+            let baseSize = 1024 * 1024 * 1024; // Default 1GB if unknown
+            
+            if (ext in sizeEstimates) {
+                if (ext === 'gguf' && (filename.includes('q4_0') || filename.includes('q4_1') || 
+                                      filename.includes('q5_0') || filename.includes('q5_1') || 
+                                      filename.includes('q8_0'))) {
+                    // For quantized GGUF models, use the specific quantization size
+                    for (const quantKey in sizeEstimates.gguf) {
+                        if (filename.includes(quantKey)) {
+                            baseSize = sizeEstimates.gguf[quantKey];
+                            break;
+                        }
+                    }
+                } else if (ext === 'gguf') {
+                    // For non-quantized GGUF models
+                    baseSize = sizeEstimates.gguf.base;
+                } else {
+                    // For other file types
+                    baseSize = sizeEstimates[ext];
+                }
+            }
+            
+            // Calculate final estimated size
+            return Math.round(baseSize * sizeFactor * quantizationFactor);
+        }
+        
+        // Show download options modal
+        function showDownloadOptions() {
+            const fileSelector = document.getElementById('file-selector');
+            fileSelector.innerHTML = '';
+            
+            // Add file options with sizes
+            currentModelFiles.forEach(file => {
+                const estimatedSize = estimateFileSize(file, currentModelId);
+                const displayFilename = file.split('/').pop(); // Get just the filename without the path
+                
+                const option = document.createElement('option');
+                option.value = file; // Keep the full path as the value
+                option.textContent = `${displayFilename} (${formatBytes(estimatedSize)})`;
+                fileSelector.appendChild(option);
+            });
+            
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('download-options-modal'));
+            modal.show();
+        }
+        
+        // Download a specific file
+        async function downloadFile(modelId, filename) {
+            try {
+                // Show a loading indicator
+                const downloadBtn = document.querySelector(`.download-file-btn[data-file="${filename}"]`);
+                if (downloadBtn) {
+                    const originalHtml = downloadBtn.innerHTML;
+                    downloadBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Downloading...`;
+                    downloadBtn.disabled = true;
+                    
+                    // Restore the button after 30 seconds in case of timeout
+                    setTimeout(() => {
+                        if (downloadBtn.disabled) {
+                            downloadBtn.innerHTML = originalHtml;
+                            downloadBtn.disabled = false;
+                        }
+                    }, 30000);
+                }
+                
+                // Get just the filename for display purposes
+                const displayFilename = filename.split('/').pop();
+                
+                const response = await fetch('/api/huggingface/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model_id: modelId,
+                        filename: filename
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Reset the download button if it exists
+                if (downloadBtn) {
+                    downloadBtn.innerHTML = `<i class="bi bi-cloud-download"></i> Download`;
+                    downloadBtn.disabled = false;
+                }
+                
+                if (data.success) {
+                    alert(`Successfully downloaded ${displayFilename} to draft area`);
+                    // Refresh draft models list
+                    loadDraftModels();
+                    // Close the modal
+                    bootstrap.Modal.getInstance(document.getElementById('model-details-modal')).hide();
+                } else {
+                    if (data.error === "Hugging Face API not initialized") {
+                        // Show a more helpful error message with instructions
+                        const errorMessage = `Hugging Face API is not initialized. Please go to Settings and:
+\n1. Enable Hugging Face integration\n2. Enter your Hugging Face API token\n\nYou can get an API token from https://huggingface.co/settings/tokens`;
+                        alert(errorMessage);
+                    } else {
+                        alert(`Error downloading file: ${data.error}`);
+                    }
+                }
+            } catch (error) {
+                console.error('Error downloading file:', error);
+                alert(`Error downloading file: ${error.message}`);
+            }
+        }
+        
+        // Download selected file from the options modal
+        function downloadSelectedFile() {
+            const fileSelector = document.getElementById('file-selector');
+            const filename = fileSelector.value;
+            
+            if (filename) {
+                // Close the options modal
+                bootstrap.Modal.getInstance(document.getElementById('download-options-modal')).hide();
+                // Download the file
+                downloadFile(currentModelId, filename);
+            }
+        }
+        
+        // Removed draft models functions
+        
+        // Draft models functions removed
+        
+        // Check if Hugging Face API is configured
+        async function checkHuggingFaceConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                
+                if (!data.frameworks?.huggingface?.enabled || !data.frameworks?.huggingface?.api_token) {
+                    // Show the alert if API is not configured
+                    document.getElementById('api-config-alert').classList.remove('d-none');
+                    return false;
+                } else {
+                    // Hide the alert if API is configured
+                    document.getElementById('api-config-alert').classList.add('d-none');
+                    return true;
+                }
+            } catch (error) {
+                console.error('Error checking Hugging Face config:', error);
+                return false;
+            }
+        }
+        
+        // Document ready function
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if Hugging Face API is configured
+            checkHuggingFaceConfig();
+            
+            // Draft models section removed
+            
+            // Add event listeners for search form
+            document.getElementById('search-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                searchModels();
+            });
+            
+            // Add event listener for download selected button
+            document.getElementById('download-selected').addEventListener('click', downloadSelectedFile);
+        });
+    </script>
+</body>
+</html>

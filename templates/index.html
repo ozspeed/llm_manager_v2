@@ -45,6 +45,29 @@
         .main-content {
             padding: 1.5rem;
         }
+        /* Draft models container with fixed height */
+        #draft-models-container {
+            max-height: 300px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            border: 1px solid #e9ecef;
+            border-radius: 0.25rem;
+        }
+        /* Compact draft model items */
+        .draft-model-item {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+        }
+        .draft-model-item .fw-bold {
+            font-size: 0.95rem;
+        }
+        .draft-model-item .small {
+            font-size: 0.8rem;
+        }
+        .draft-model-item .btn-sm {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.75rem;
+        }
     </style>
     <div class="container-fluid">
         <div class="row">
@@ -58,6 +81,13 @@
                         <a class="nav-link active d-flex align-items-center gap-2" href="/">
                             <i class="bi bi-house"></i>
                             Home
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-2" href="/huggingface">
+                            <i class="bi bi-cloud-download"></i>
+                            Hugging Face
                         </a>
                     </li>
 
@@ -126,47 +156,76 @@
                         <h5 class="mb-0">Library Actions</h5>
                     </div>
                     <div class="card-body">
-                        <p>Manage your model library and database.</p>
-                        
-                        <!-- Library Path -->
-                        <div class="mb-4">
-                            <p class="mb-0">Current Library Path: <span id="library-path"></span></p>
-                        </div>
-
-                        <div class="row">
-                            <!-- Add New Model -->
-                            <div class="col-md-6 mb-4">
-                                <h6 class="mb-3">Add New Model</h6>
-                                <form id="add-model-form">
-                                    <div class="mb-3">
-                                        <label for="model-source-dir" class="form-label">Model Location</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" id="model-source-dir" required>
-                                            <button class="btn btn-outline-secondary" type="button" id="browse-source-dir">
-                                                <i class="bi bi-folder2-open"></i> Browse
-                                            </button>
-                                        </div>
-                                        <div class="form-text">Select the directory containing your model files</div>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary">Add Model</button>
-                                </form>
-                                <div id="add-model-status" class="mt-3"></div>
-                            </div>
-
-                            <!-- Scan Library -->
-                            <div class="col-md-6 mb-4">
-                                <h6 class="mb-3">Scan Library</h6>
-                                <div class="mb-3 form-check">
-                                    <input type="checkbox" class="form-check-input" id="include-ollama" checked>
-                                    <label class="form-check-label" for="include-ollama">Include Ollama models</label>
-                                </div>
-                                <div class="d-flex gap-2">
+                        <!-- Library Actions Row -->
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="d-flex align-items-center gap-2 mb-3">
                                     <button id="scan-library-btn" class="btn btn-success">Scan Library</button>
                                     <button id="reset-db-btn" class="btn btn-outline-danger">
                                         <i class="bi bi-trash"></i> Reset Database
                                     </button>
+                                    <span class="ms-3">Current Library Path: <span id="library-path" class="fw-bold"></span></span>
                                 </div>
-                                <div id="scan-results" class="mt-3"></div>
+                            </div>
+                        </div>
+
+                        <!-- Add Model and Draft Models Row -->
+                        <div class="row mb-4">
+                            <!-- Add New Model -->
+                            <div class="col-md-6">
+                                <h6 class="mb-2">Add New Model</h6>
+                                <form id="add-model-form">
+                                    <div class="mb-2">
+                                        <div class="form-text mb-1">Select the directory containing your model files</div>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="model-source-dir" placeholder="Model Location" required>
+                                            <button class="btn btn-outline-secondary" type="button" id="browse-source-dir">
+                                                <i class="bi bi-folder2-open"></i> Browse
+                                            </button>
+                                            <button type="submit" class="btn btn-primary">Add Model</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <!-- Draft Models -->
+                            <div class="col-md-6">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="mb-0">Draft Models</h6>
+                                    <div>
+                                        <span class="badge bg-secondary me-2" id="draft-count">0</span>
+                                        <button class="btn btn-sm btn-light" id="view-all-drafts-btn" style="display: none;">View All</button>
+                                    </div>
+                                </div>
+                                <p class="text-muted small mb-1">Models downloaded from Hugging Face appear here.</p>
+                                <div id="draft-models-container" class="list-group" style="max-height: 150px; overflow-y: auto;">
+                                    <div class="text-center text-muted py-2" id="no-drafts-message">
+                                        <i class="bi bi-inbox" style="font-size: 1.2rem;"></i>
+                                        <p class="mt-1 small">No models in draft area</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Recent Activity Section -->
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <div class="card">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">Recent Activity</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="activity-log" class="overflow-auto" style="max-height: 200px;">
+                                            <!-- Activity messages will appear here -->
+                                            <div class="text-center text-muted py-3" id="no-activity-message">
+                                                <i class="bi bi-clock-history"></i>
+                                                <p class="mt-2 small">No recent activity</p>
+                                            </div>
+                                            <div id="scan-results" class="d-none"></div>
+                                            <div id="add-model-status" class="d-none"></div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -182,7 +241,7 @@
                 <div class="card">
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
-                            <h5 class="mb-0">Installed Models</h5>
+                            <h5 class="mb-0">Installed Models <span class="small" id="ollama-status">Including Ollama Models</span></h5>
                         </div>
                         <div>
                             <input type="text" id="search-models" class="form-control form-control-sm" placeholder="Search models...">                            
@@ -412,7 +471,7 @@
                 await browseForDirectory(startPath, 'model-source-dir');
             } catch (error) {
                 console.error('Error browsing directories:', error);
-                alert('Failed to browse directories');
+                logActivity('Failed to browse directories', 'danger');
             }
         });
         
@@ -583,7 +642,7 @@
                 
             } catch (error) {
                 console.error('Error in directory browser:', error);
-                alert('Failed to browse directories: ' + error.message);
+                logActivity('Failed to browse directories: ' + error.message, 'danger');
             }
         }
         
@@ -594,13 +653,11 @@
             const searchStartpoint = document.getElementById('model-source-dir').value;
             
             if (!searchStartpoint) {
-                document.getElementById('add-model-status').innerHTML = 
-                    '<div class="alert alert-danger">Please specify a directory to scan for models.</div>';
+                logActivity('Please specify a directory to scan for models.', 'danger');
                 return;
             }
             
-            document.getElementById('add-model-status').innerHTML = 
-                '<div class="alert alert-info">Scanning for models... Please wait.</div>';
+            logActivity('Scanning for models in ' + searchStartpoint + '... Please wait.', 'info');
             
             try {
                 // First, scan the directory for models
@@ -617,14 +674,12 @@
                 const scanResult = await scanResponse.json();
                 
                 if (!scanResponse.ok) {
-                    document.getElementById('add-model-status').innerHTML = 
-                        `<div class="alert alert-danger">Error scanning for models: ${scanResult.error}</div>`;
+                    logActivity(`Error scanning for models: ${scanResult.error}`, 'danger');
                     return;
                 }
                 
                 if (!scanResult.models || scanResult.models.length === 0) {
-                    document.getElementById('add-model-status').innerHTML = 
-                        '<div class="alert alert-warning">No models found in the selected directory.</div>';
+                    logActivity('No models found in the selected directory.', 'warning');
                     return;
                 }
                 
@@ -633,12 +688,11 @@
                 const modalInstance = new bootstrap.Modal(modal);
                 const modelList = document.getElementById('model-list');
                 
-                // Handle modal close events to reset the status if operation wasn't completed
+                // Handle modal close events
                 modal.addEventListener('hidden.bs.modal', function() {
-                    // If the status still shows "Adding selected models...", reset it
-                    const statusEl = document.getElementById('add-model-status');
-                    if (statusEl && statusEl.innerText.includes('Adding selected models... Please wait.')) {
-                        statusEl.innerHTML = '';
+                    // Log if the modal was closed without completing the operation
+                    if (document.getElementById('activity-log').innerText.includes('Adding selected models... Please wait.')) {
+                        logActivity('Model selection cancelled', 'info');
                     }
                 });
                 
@@ -780,15 +834,14 @@
                     });
                     
                     if (selectedModels.length === 0) {
-                        alert('Please select at least one model to add.');
+                        logActivity('Please select at least one model to add.', 'warning');
                         return;
                     }
                     
                     // Hide the modal
                     modalInstance.hide();
                     
-                    document.getElementById('add-model-status').innerHTML = 
-                        '<div class="alert alert-info">Adding selected models... Please wait.</div>';
+                    logActivity('Adding selected models... Please wait.', 'info');
                     
                     // Add the selected models
                     try {
@@ -807,14 +860,12 @@
                         
                         // Ensure the status is updated regardless of the response
                         if (!addResponse.ok && !addResult.needsConfirmation) {
-                            document.getElementById('add-model-status').innerHTML = 
-                                `<div class="alert alert-danger">Error adding models: ${addResult.error || 'Unknown error'}</div>`;
+                            logActivity(`Error adding models: ${addResult.error || 'Unknown error'}`, 'danger');
                             return;
                         }
                         
                         if (addResponse.ok) {
-                            document.getElementById('add-model-status').innerHTML = 
-                                `<div class="alert alert-success">${addResult.message || 'Models added successfully'}</div>`;
+                            logActivity(addResult.message || 'Models added successfully', 'success');
                             document.getElementById('add-model-form').reset();
                             // Use refreshModels instead of loadModels to update the database
                             await refreshModels();
@@ -841,29 +892,24 @@
                                     const overwriteResult = await overwriteResponse.json();
                                     
                                     if (overwriteResponse.ok) {
-                                        document.getElementById('add-model-status').innerHTML = 
-                                            `<div class="alert alert-success">${overwriteResult.message || 'Models overwritten successfully'}</div>`;
+                                        logActivity(overwriteResult.message || 'Models overwritten successfully', 'success');
                                         document.getElementById('add-model-form').reset();
                                         // Use refreshModels instead of loadModels to update the database
                                         await refreshModels();
                                     } else {
-                                        document.getElementById('add-model-status').innerHTML = 
-                                            `<div class="alert alert-danger">Error during overwrite: ${overwriteResult.error}</div>`;
+                                        logActivity(`Error during overwrite: ${overwriteResult.error}`, 'danger');
                                     }
                                 } else {
                                     // User cancelled overwrite
-                                    document.getElementById('add-model-status').innerHTML = 
-                                        '<div class="alert alert-warning">Operation cancelled by user.</div>';
+                                    logActivity('Operation cancelled by user.', 'warning');
                                 }
                             }
                         } else {
-                            document.getElementById('add-model-status').innerHTML = 
-                                `<div class="alert alert-danger">Error adding models: ${addResult.error}</div>`;
+                            logActivity(`Error adding models: ${addResult.error}`, 'danger');
                         }
                     } catch (error) {
                         console.error('Error during model addition:', error);
-                        document.getElementById('add-model-status').innerHTML = 
-                            '<div class="alert alert-danger">Failed to add models. Check console for details.</div>';
+                        logActivity('Failed to add models. Check console for details.', 'danger');
                     }
                 };
                 
@@ -872,8 +918,7 @@
                 
             } catch (error) {
                 console.error('Error processing models:', error);
-                document.getElementById('add-model-status').innerHTML = 
-                    '<div class="alert alert-danger">Failed to process models. Check console for details.</div>';
+                logActivity('Failed to process models. Check console for details.', 'danger');
             }
         }
 
@@ -889,14 +934,17 @@
                     await refreshModels();
                     updateSystemInfo();
                     const result = await response.json();
-                    // Show a toast or alert with the success message
+                    // Log the activity and show a toast with the success message
+                    logActivity(result.message || 'Model deleted successfully', 'success');
                     showToast(result.message || 'Model deleted successfully', 'success');
                 } else {
                     const result = await response.json();
+                    logActivity(`Error: ${result.error}`, 'danger');
                     showToast(`Error: ${result.error}`, 'danger');
                 }
             } catch (error) {
                 console.error('Error deleting model:', error);
+                logActivity('Failed to delete model', 'danger');
                 showToast('Failed to delete model', 'danger');
             }
         }
@@ -937,27 +985,55 @@
             });
         }
 
+        // Log activity to the activity log
+        function logActivity(message, type = 'info') {
+            const activityLog = document.getElementById('activity-log');
+            const noActivityMessage = document.getElementById('no-activity-message');
+            
+            // Hide the no activity message if it's visible
+            if (noActivityMessage) {
+                noActivityMessage.style.display = 'none';
+            }
+            
+            // Create timestamp
+            const now = new Date();
+            const timestamp = now.toLocaleTimeString();
+            
+            // Create the activity message
+            const activityHtml = `
+                <div class="alert alert-${type} mb-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>${message}</div>
+                        <small class="text-muted">${timestamp}</small>
+                    </div>
+                </div>
+            `;
+            
+            // Add to the top of the activity log
+            activityLog.insertAdjacentHTML('afterbegin', activityHtml);
+        }
+        
         // Scan library
         async function scanLibrary() {
             // Get the path from the read-only field (which is populated from settings)
             const path = document.getElementById('library-path').textContent;
-            const includeOllama = document.getElementById('include-ollama').checked;
+            // Get the Ollama status from the data attribute
+            const includeOllama = document.getElementById('ollama-status').dataset.enabled === 'true';
             const resultsContainer = document.getElementById('scan-results');
             
             if (!path || path === 'No library path configured') {
-                resultsContainer.innerHTML = '<div class="alert alert-danger">No library path configured. Please set the Model Library Path in Settings.</div>';
+                logActivity('No library path configured. Please set the Model Library Path in Settings.', 'danger');
                 return;
             }
             
-            resultsContainer.innerHTML = '<div class="alert alert-info">Scanning library...</div>';
+            logActivity('Scanning library... Please wait.', 'info');
             
             try {
                 const response = await fetch(`/api/scan?path=${encodeURIComponent(path)}&include_ollama=${includeOllama}`);
                 const result = await response.json();
                 
                 if (response.ok) {
-                    let successMessage = `<div class="alert alert-success">
-                        <strong>Scan Complete:</strong> `;
+                    let successMessage = '<strong>Scan Complete:</strong> ';
                     
                     if (result.added > 0) {
                         successMessage += `Added ${result.added} new models. `;
@@ -968,16 +1044,16 @@
                     }
                     
                     if (result.ollama_models_found > 0) {
-                        successMessage += `<br>Detected ${result.ollama_models_found} Ollama models.`;
+                        successMessage += `Detected ${result.ollama_models_found} Ollama models. `;
                     }
                     
                     if (result.added === 0 && result.existing === 0) {
-                        successMessage += `No models found in the specified directory.`;
+                        successMessage += `No models found in the specified directory. `;
                     }
                     
                     // Add total count of models found
                     if (result.models && result.models.length > 0) {
-                        successMessage += `<br><br>Total models found: ${result.models.length}`;
+                        successMessage += `Total models found: ${result.models.length}. `;
                         
                         // Add counts by framework if available
                         const frameworkCounts = {};
@@ -989,47 +1065,36 @@
                         });
                         
                         if (Object.keys(frameworkCounts).length > 0) {
-                            successMessage += `<br><small>Frameworks: `;
+                            successMessage += `Frameworks: `;
                             Object.entries(frameworkCounts).forEach(([framework, count], index) => {
                                 if (index > 0) successMessage += ', ';
                                 successMessage += `${framework} (${count})`;
                             });
-                            successMessage += `</small>`;
                         }
                     }
                     
-                    successMessage += `</div>`;
+                    logActivity(successMessage, 'success');
                     
-                    successMessage += `<div class="alert alert-info mt-2">
-                        <i class="bi bi-info-circle"></i> All models have been loaded into the "Installed Models" section below.
-                    </div>`;
-                    
-                    resultsContainer.innerHTML = successMessage;
+                    // Additional info message
+                    logActivity('All models have been loaded into the "Installed Models" section below.', 'info');
                     
                     // Scroll to the models section
                     document.getElementById('models-section').scrollIntoView({ behavior: 'smooth' });
                     loadModels();
                     updateSystemInfo();
                 } else {
-                    resultsContainer.innerHTML = `
-                        <div class="alert alert-danger">
-                            Error: ${result.error}
-                        </div>
-                    `;
+                    logActivity(`Error: ${result.error}`, 'danger');
                 }
             } catch (error) {
                 console.error('Error scanning library:', error);
-                resultsContainer.innerHTML = `
-                    <div class="alert alert-danger">
-                        Failed to scan library
-                    </div>
-                `;
+                logActivity('Failed to scan library', 'danger');
             }
         }
 
         // Reset database
         async function resetDatabase() {
             if (confirm('Are you sure you want to reset the database? This will delete all model records.')) {
+                logActivity('Resetting database... Please wait.', 'info');
                 try {
                     const response = await fetch('/api/reset-database', {
                         method: 'POST'
@@ -1037,16 +1102,18 @@
                     const result = await response.json();
                     
                     if (response.ok) {
-                        alert('Database reset successfully');
+                        logActivity('Database reset successfully', 'success');
                         loadModels();
                         updateSystemInfo();
                     } else {
-                        alert(`Error: ${result.error}`);
+                        logActivity(`Error resetting database: ${result.error}`, 'danger');
                     }
                 } catch (error) {
                     console.error('Error resetting database:', error);
-                    alert('Failed to reset database');
+                    logActivity('Failed to reset database', 'danger');
                 }
+            } else {
+                logActivity('Database reset cancelled by user', 'warning');
             }
         }
 
@@ -1059,9 +1126,10 @@
                 // Update the library path in the scan form (read-only display)
                 document.getElementById('library-path').textContent = data.paths.model_library || 'No library path configured';
                 
-                // Update the include Ollama checkbox (read-only display)
-                document.getElementById('include-ollama').checked = data.frameworks.ollama.enabled;
-                document.getElementById('include-ollama').disabled = true; // Make it read-only
+                // Update the Ollama status text
+                const ollamaStatus = document.getElementById('ollama-status');
+                ollamaStatus.textContent = data.frameworks.ollama.enabled ? 'Including Ollama Models' : 'Excluding Ollama Models';
+                ollamaStatus.dataset.enabled = data.frameworks.ollama.enabled;
                 
                 console.log('Settings loaded:', data);
             } catch (error) {
@@ -1074,12 +1142,184 @@
         
 
 
+        // Load draft models from Hugging Face with limit
+        async function loadDraftModels() {
+            try {
+                const response = await fetch('/api/huggingface/draft-models');
+                const data = await response.json();
+                
+                const container = document.getElementById('draft-models-container');
+                const noModelsMessage = document.getElementById('no-drafts-message');
+                const viewAllBtn = document.getElementById('view-all-drafts-btn');
+                
+                if (data.success && data.models.length > 0) {
+                    // Hide the no drafts message
+                    noModelsMessage.style.display = 'none';
+                    
+                    // Update draft count
+                    document.getElementById('draft-count').textContent = data.models.length;
+                    
+                    // Sort models by modified date (newest first)
+                    const sortedModels = data.models.sort((a, b) => {
+                        return new Date(b.modified || 0) - new Date(a.modified || 0);
+                    });
+                    
+                    // Show View All button if there are more than 5 models
+                    if (sortedModels.length > 5) {
+                        viewAllBtn.style.display = 'inline-block';
+                        viewAllBtn.onclick = function() {
+                            // Show all models
+                            displayDraftModels(sortedModels);
+                            // Hide the button after clicking
+                            this.style.display = 'none';
+                        };
+                    } else {
+                        viewAllBtn.style.display = 'none';
+                    }
+                    
+                    // Display limited models (max 5)
+                    displayDraftModels(sortedModels.slice(0, 5));
+                } else {
+                    // Show the no drafts message
+                    noModelsMessage.style.display = 'block';
+                    container.innerHTML = '';
+                    container.appendChild(noModelsMessage);
+                    
+                    // Reset draft count
+                    document.getElementById('draft-count').textContent = '0';
+                    viewAllBtn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading draft models:', error);
+                showToast('Failed to load draft models', 'danger');
+            }
+        }
+        
+        // Helper function to display draft models
+        function displayDraftModels(models) {
+            const container = document.getElementById('draft-models-container');
+            container.innerHTML = '';
+            
+            models.forEach(model => {
+                const modelItem = document.createElement('div');
+                modelItem.className = 'list-group-item list-group-item-action draft-model-item p-2';
+                
+                // Extract just the filename from the path
+                const filename = model.filename || model.name;
+                
+                // Create model name and size display
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'd-flex justify-content-between align-items-center';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'fw-bold';
+                nameSpan.textContent = filename;
+                nameSpan.title = model.path; // Show full path on hover
+                
+                const sizeSpan = document.createElement('span');
+                sizeSpan.className = 'badge bg-secondary';
+                sizeSpan.textContent = formatBytes(model.size);
+                
+                nameDiv.appendChild(nameSpan);
+                nameDiv.appendChild(sizeSpan);
+                modelItem.appendChild(nameDiv);
+                
+                // Add action buttons
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'mt-2 d-flex justify-content-end gap-2';
+                
+                // Move button
+                const moveButton = document.createElement('button');
+                moveButton.className = 'btn btn-sm btn-primary';
+                moveButton.innerHTML = '<i class="bi bi-box-arrow-right"></i> Move';
+                moveButton.onclick = () => moveToLibrary(filename);
+                
+                // Cancel button
+                const cancelButton = document.createElement('button');
+                cancelButton.className = 'btn btn-sm btn-outline-danger';
+                cancelButton.innerHTML = '<i class="bi bi-x-circle"></i> Cancel';
+                cancelButton.onclick = () => deleteDraftModel(filename);
+                
+                actionsDiv.appendChild(moveButton);
+                actionsDiv.appendChild(cancelButton);
+                modelItem.appendChild(actionsDiv);
+                
+                container.appendChild(modelItem);
+            });
+        }
+        
+        // Move a model from draft area to library
+        async function moveToLibrary(filename) {
+            try {
+                logActivity(`Moving model ${filename} to library...`, 'info');
+                const response = await fetch('/api/huggingface/move-to-library', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filename })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    logActivity(`Model ${filename} moved to library successfully`, 'success');
+                    showToast(`Model ${filename} moved to library successfully`, 'success');
+                    // Reload draft models and library models
+                    loadDraftModels();
+                    loadModels();
+                } else {
+                    logActivity(`Error: ${result.error || 'Failed to move model'}`, 'danger');
+                    showToast(`Error: ${result.error || 'Failed to move model'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Error moving model to library:', error);
+                logActivity('Failed to move model to library', 'danger');
+                showToast('Failed to move model to library', 'danger');
+            }
+        }
+        
+        // Delete a model from draft area without adding to library
+        async function deleteDraftModel(filename) {
+            try {
+                if (!confirm(`Are you sure you want to delete ${filename} from the draft area?`)) {
+                    return;
+                }
+                
+                logActivity(`Deleting draft model ${filename}...`, 'info');
+                const response = await fetch('/api/huggingface/delete-draft', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filename })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    logActivity(`Model ${filename} deleted from draft area`, 'success');
+                    showToast(`Model ${filename} deleted successfully`, 'success');
+                    // Reload draft models
+                    loadDraftModels();
+                } else {
+                    logActivity(`Error: ${result.error || 'Failed to delete model'}`, 'danger');
+                    showToast(`Error: ${result.error || 'Failed to delete model'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Error deleting draft model:', error);
+                logActivity('Failed to delete draft model', 'danger');
+                showToast('Failed to delete draft model', 'danger');
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             // Load initial data
             updateSystemInfo();
             loadModels();
             loadSettings();
+            loadDraftModels(); // Load draft models
             
             // Set up event listeners
             document.getElementById('add-model-form').addEventListener('submit', addModel);

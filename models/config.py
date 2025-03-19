@@ -24,6 +24,10 @@ DEFAULT_SETTINGS = {
         "ollama": {
             "enabled": False,
             "repositories": []
+        },
+        "huggingface": {
+            "enabled": False,
+            "api_token": ""
         }
     },
     "tool_repositories": []
@@ -100,11 +104,34 @@ def save_settings():
     """Save current settings to settings.json file."""
     try:
         settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'settings.json')
+        logger.info(f"Saving settings to: {settings_path}")
+        
+        # Log key settings before saving (for debugging)
+        logger.info(f"Settings to save - Hugging Face enabled: {_settings.get('frameworks', {}).get('huggingface', {}).get('enabled')}")
+        has_token = bool(_settings.get('frameworks', {}).get('huggingface', {}).get('api_token'))
+        logger.info(f"Settings to save - Hugging Face API token present: {has_token}")
+        
         with open(settings_path, 'w') as f:
             json.dump(_settings, f, indent=4)
-        logger.info("Saved configuration to settings.json")
+        
+        # Verify file was written
+        if os.path.exists(settings_path):
+            file_size = os.path.getsize(settings_path)
+            logger.info(f"Saved configuration to settings.json (size: {file_size} bytes)")
+            
+            # Read back the file to verify content (for debugging)
+            with open(settings_path, 'r') as f:
+                saved_settings = json.load(f)
+                hf_enabled = saved_settings.get('frameworks', {}).get('huggingface', {}).get('enabled')
+                has_token = bool(saved_settings.get('frameworks', {}).get('huggingface', {}).get('api_token'))
+                logger.info(f"Verified saved settings - Hugging Face enabled: {hf_enabled}")
+                logger.info(f"Verified saved settings - Hugging Face API token present: {has_token}")
+        else:
+            logger.error("Failed to verify settings file after saving")
     except Exception as e:
         logger.error(f"Error saving settings: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 def get_setting(key, default=None):
     """Get a setting value by key using dot notation."""
@@ -125,6 +152,41 @@ def update_settings(settings_dict):
         load_settings()
     
     try:
+        # Log the incoming settings for debugging
+        logger.info(f"Updating settings with: {json.dumps(settings_dict)}")
+        
+        # Check for Hugging Face settings specifically
+        if 'frameworks.huggingface.enabled' in settings_dict:
+            logger.info(f"Hugging Face enabled setting: {settings_dict['frameworks.huggingface.enabled']}")
+        if 'frameworks.huggingface.api_token' in settings_dict:
+            token_value = settings_dict['frameworks.huggingface.api_token']
+            # Don't log the actual token for security, just whether it's present
+            logger.info(f"Hugging Face API token provided: {bool(token_value)}")
+        
+        # Create a new dictionary with properly nested structure
+        nested_settings = {}
+        
+        for key, value in settings_dict.items():
+            if '.' in key:  # Handle dot notation keys
+                parts = key.split('.')
+                current = nested_settings
+                for i, part in enumerate(parts):
+                    if i == len(parts) - 1:  # Last part
+                        current[part] = value
+                        logger.debug(f"Set {'.'.join(parts[:i+1])} = {value if part != 'api_token' else '[REDACTED]'}")
+                    else:  # Navigate to nested dict
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+            else:
+                # Handle non-nested keys
+                nested_settings[key] = value
+                logger.debug(f"Set {key} = {value if key != 'api_token' else '[REDACTED]'}")
+        
+        # Now update the settings with the properly nested structure
+        logger.info(f"Nested settings structure: {json.dumps(nested_settings)}")
+        
+        # Deep update function for nested dictionaries
         def deep_update(target, source):
             for key, value in source.items():
                 if key in target and isinstance(target[key], dict) and isinstance(value, dict):
@@ -132,11 +194,21 @@ def update_settings(settings_dict):
                 else:
                     target[key] = value
         
-        deep_update(_settings, settings_dict)
+        # Update the settings
+        deep_update(_settings, nested_settings)
+        
+        # Save the updated settings
         save_settings()
+        
+        # Verify Hugging Face settings after update
+        logger.info(f"After update - Hugging Face enabled: {get_huggingface_enabled()}")
+        logger.info(f"After update - Hugging Face API token set: {bool(get_huggingface_api_token())}")
+        
         return True
     except Exception as e:
         logger.error(f"Error updating settings: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
 
 def set_setting(key, value):
@@ -195,6 +267,12 @@ def get_ollama_enabled():
 
 def get_ollama_repositories():
     return get_setting('frameworks.ollama.repositories', DEFAULT_SETTINGS['frameworks']['ollama']['repositories'])
+
+def get_huggingface_enabled():
+    return get_setting('frameworks.huggingface.enabled', DEFAULT_SETTINGS['frameworks']['huggingface']['enabled'])
+
+def get_huggingface_api_token():
+    return get_setting('frameworks.huggingface.api_token', DEFAULT_SETTINGS['frameworks']['huggingface']['api_token'])
 
 def get_app_version():
     return get_setting('app.version', DEFAULT_SETTINGS['app']['version'])

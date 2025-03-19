@@ -102,6 +102,13 @@
                     </li>
 
                     <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-2" href="/huggingface">
+                            <i class="bi bi-cloud-download"></i>
+                            Hugging Face
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
                         <a class="nav-link active d-flex align-items-center gap-2" href="/settings">
                             <i class="bi bi-gear"></i>
                             Settings
@@ -187,7 +194,24 @@
                                 <div class="form-text">Comma-separated list of Ollama repositories to scan</div>
                             </div>
 
+                            <hr class="my-4">
+                            <h5>Hugging Face Integration</h5>
 
+                            <div class="mb-3">
+                                <div class="switch-label">
+                                    <label class="switch">
+                                        <input type="checkbox" id="huggingface-enabled" name="huggingface_enabled">
+                                        <span class="slider"></span>
+                                    </label>
+                                    <span>Enable Hugging Face Integration</span>
+                                </div>
+                                <div class="form-text">Search and download models from Hugging Face</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="huggingface-api-token" class="form-label">Hugging Face API Token</label>
+                                <input type="password" class="form-control" id="huggingface-api-token" name="huggingface_api_token">
+                                <div class="form-text">API token for Hugging Face (required for downloading models)</div>
+                            </div>
 
                         </form>
                     </div>
@@ -399,8 +423,9 @@
                 const app = config.app || {};
                 const frameworks = config.frameworks || {};
                 const ollama = frameworks.ollama || {};
+                const huggingface = frameworks.huggingface || {};
                 
-                console.log('Extracted config sections:', { paths, models, app, frameworks, ollama });
+                console.log('Extracted config sections:', { paths, models, app, frameworks, ollama, huggingface });
                 
                 // Populate form fields with safe access
                 document.getElementById('model-library-path').value = paths.model_library || '';
@@ -410,6 +435,8 @@
                 document.getElementById('debug-mode').checked = app.debug || false;
                 document.getElementById('ollama-enabled').checked = ollama.enabled || false;
                 document.getElementById('ollama-repos').value = (ollama.repositories || []).join(',');
+                document.getElementById('huggingface-enabled').checked = huggingface.enabled || false;
+                document.getElementById('huggingface-api-token').value = huggingface.api_token || '';
                 
                 // Clear existing repositories
                 document.getElementById('tool-repositories-container').innerHTML = '';
@@ -772,6 +799,8 @@
                 const debugMode = document.getElementById('debug-mode').checked;
                 const ollamaEnabled = document.getElementById('ollama-enabled').checked;
                 const ollamaRepos = document.getElementById('ollama-repos').value.split(',').map(repo => repo.trim()).filter(repo => repo);
+                const huggingfaceEnabled = document.getElementById('huggingface-enabled').checked;
+                const huggingfaceApiToken = document.getElementById('huggingface-api-token').value;
                 
                 // Collect tool repositories
                 const toolRepositories = collectRepositories();
@@ -785,6 +814,8 @@
                     'app.debug': debugMode,
                     'frameworks.ollama.enabled': ollamaEnabled,
                     'frameworks.ollama.repositories': ollamaRepos,
+                    'frameworks.huggingface.enabled': huggingfaceEnabled,
+                    'frameworks.huggingface.api_token': huggingfaceApiToken,
                     'tool_repositories': toolRepositories
                 };
                 
