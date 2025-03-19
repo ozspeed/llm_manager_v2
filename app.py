@@ -363,9 +363,38 @@ def confirm_overwrite():
 @app.route('/api/config', methods=['GET'])
 def get_config():
     """Get the current configuration."""
-    if config._settings is None:
-        config.load_settings()
-    return jsonify(config._settings)
+    try:
+        app.logger.info("Config API endpoint called")
+        
+        if config._settings is None:
+            app.logger.info("Settings not loaded, loading now")
+            config.load_settings()
+        
+        # Ensure we have a valid settings object
+        if not config._settings:
+            app.logger.warning("Empty settings detected, reloading defaults")
+            config._settings = config.DEFAULT_SETTINGS.copy()
+            
+        # Log the settings for debugging
+        app.logger.info(f"Returning settings: {config._settings}")
+        
+        # Ensure the structure is complete
+        if 'paths' not in config._settings:
+            config._settings['paths'] = {}
+        if 'models' not in config._settings:
+            config._settings['models'] = {'extensions': config.DEFAULT_SETTINGS['models']['extensions']}
+        if 'app' not in config._settings:
+            config._settings['app'] = {}
+        if 'frameworks' not in config._settings:
+            config._settings['frameworks'] = {'ollama': {}}
+        
+        response = jsonify(config._settings)
+        return response
+    except Exception as e:
+        app.logger.error(f"Error in get_config: {str(e)}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 # API endpoint to browse directories
 @app.route('/api/browse', methods=['GET'])

@@ -4,26 +4,28 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Default settings
+# Default settings - only keeping model extensions as default
 DEFAULT_SETTINGS = {
     "app": {
         "version": "1.2.0",
         "port": 8001,
-        "debug": True
+        "debug": False
     },
     "paths": {
-        "model_library": os.path.expanduser("~/AI Models"),
-        "database": "models.db"
+        "model_library": "",
+        "database": "models.db",
+        "draft_download_area": ""
     },
     "models": {
         "extensions": [".gguf", ".ggml", ".bin", ".safetensors", ".onnx", ".pt", ".pth"]
     },
     "frameworks": {
         "ollama": {
-            "enabled": True,
-            "repositories": ["ollama"]
+            "enabled": False,
+            "repositories": []
         }
-    }
+    },
+    "tool_repositories": []
 }
 
 _settings = None
@@ -34,20 +36,53 @@ def load_settings():
     
     try:
         settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'settings.json')
+        logger.info(f"Looking for settings at: {settings_path}")
+        
         if os.path.exists(settings_path):
-            with open(settings_path, 'r') as f:
-                loaded_settings = json.load(f)
-                # Ensure all default settings exist
-                _settings = DEFAULT_SETTINGS.copy()
-                deep_update(_settings, loaded_settings)
+            logger.info("Settings file found, loading...")
+            try:
+                with open(settings_path, 'r') as f:
+                    file_content = f.read()
+                    logger.info(f"Raw settings content: {file_content[:100]}...")
+                    loaded_settings = json.loads(file_content)
+                    
+                # Start with loaded settings and only use defaults for missing values
+                _settings = loaded_settings
+                logger.info(f"Loaded settings: {_settings}")
+                
+                # Ensure model extensions exist
+                if 'models' not in _settings or 'extensions' not in _settings['models']:
+                    logger.info("Adding default model extensions")
+                    if 'models' not in _settings:
+                        _settings['models'] = {}
+                    _settings['models']['extensions'] = DEFAULT_SETTINGS['models']['extensions']
+                
+                # Ensure minimal structure exists
+                for section in ['app', 'paths', 'frameworks']:
+                    if section not in _settings:
+                        logger.info(f"Adding missing section: {section}")
+                        _settings[section] = {}
+                        
+                # Ensure frameworks.ollama exists
+                if 'frameworks' in _settings and 'ollama' not in _settings['frameworks']:
+                    _settings['frameworks']['ollama'] = {}
+                
                 logger.info("Loaded configuration from settings.json")
+            except json.JSONDecodeError as json_error:
+                logger.error(f"JSON decode error: {str(json_error)}")
+                logger.error(f"Invalid JSON in settings file: {settings_path}")
+                _settings = DEFAULT_SETTINGS.copy()
         else:
+            # If no settings file exists, use minimal defaults and create the file
+            logger.info("Settings file not found, creating default")
             _settings = DEFAULT_SETTINGS.copy()
             save_settings()
             logger.info("Created default configuration")
     except Exception as e:
         logger.error(f"Error loading settings: {str(e)}")
-        _settings = DEFAULT_SETTINGS.copy()
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        _settings = DEFAULT_SETTINGS.copy()  # Use defaults on error instead of empty settings
 
 def deep_update(target, source):
     """Recursively update target dict with values from source dict."""
@@ -138,6 +173,9 @@ def get_model_library_path():
 
 def get_database_path():
     return get_setting('paths.database', DEFAULT_SETTINGS['paths']['database'])
+
+def get_draft_download_area():
+    return os.path.expanduser(get_setting('paths.draft_download_area', DEFAULT_SETTINGS['paths']['draft_download_area'] or '~/Downloads/LLM_Downloads'))
 
 def get_model_extensions():
     return get_setting('models.extensions', DEFAULT_SETTINGS['models']['extensions'])

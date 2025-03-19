@@ -136,6 +136,17 @@
                             </div>
 
                             <div class="mb-3">
+                                <label for="draft-download-area" class="form-label">Draft Download Area</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="draft-download-area" name="draft_download_area">
+                                    <button class="btn btn-outline-secondary" type="button" id="browse-draft-btn">
+                                        <i class="bi bi-folder2-open"></i> Browse
+                                    </button>
+                                </div>
+                                <div class="form-text">Temporary storage for downloaded models before moving to library</div>
+                            </div>
+
+                            <div class="mb-3">
                                 <label for="model-extensions" class="form-label">Model File Extensions</label>
                                 <input type="text" class="form-control" id="model-extensions" name="model_extensions">
                                 <div class="form-text">Comma-separated list of file extensions to recognize as models</div>
@@ -354,30 +365,80 @@
         // Load settings from server
         async function loadSettings() {
             try {
+                console.log('Fetching configuration...');
                 const response = await fetch('/api/config');
-                const config = await response.json();
                 
-                // Populate form fields
-                document.getElementById('model-library-path').value = config.paths.model_library || '';
-                document.getElementById('draft-download-area').value = config.paths.draft_download_area || '';
-                document.getElementById('model-extensions').value = (config.models.extensions || []).join(',');
-                document.getElementById('app-port').value = config.app.port || 8002;
-                document.getElementById('debug-mode').checked = config.app.debug || false;
-                document.getElementById('ollama-enabled').checked = config.frameworks.ollama.enabled || false;
-                document.getElementById('ollama-repos').value = (config.frameworks.ollama.repositories || []).join(',');
+                if (!response.ok) {
+                    console.error('Response not OK:', response.status, response.statusText);
+                    const responseText = await response.text();
+                    console.error('Response body:', responseText);
+                    throw new Error(`HTTP error! status: ${response.status}, text: ${responseText}`);
+                }
+                
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+                
+                let config;
+                try {
+                    config = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('JSON parse error:', parseError);
+                    throw new Error(`Failed to parse JSON: ${parseError.message}`);
+                }
+                
+                console.log('Parsed config:', config);
+                
+                if (!config) {
+                    console.error('Config is null or undefined');
+                    throw new Error('Received empty configuration');
+                }
+                
+                // Ensure paths object exists
+                const paths = config.paths || {};
+                const models = config.models || {};
+                const app = config.app || {};
+                const frameworks = config.frameworks || {};
+                const ollama = frameworks.ollama || {};
+                
+                console.log('Extracted config sections:', { paths, models, app, frameworks, ollama });
+                
+                // Populate form fields with safe access
+                document.getElementById('model-library-path').value = paths.model_library || '';
+                document.getElementById('draft-download-area').value = paths.draft_download_area || '';
+                document.getElementById('model-extensions').value = (models.extensions || []).join(',');
+                document.getElementById('app-port').value = app.port || 8001;
+                document.getElementById('debug-mode').checked = app.debug || false;
+                document.getElementById('ollama-enabled').checked = ollama.enabled || false;
+                document.getElementById('ollama-repos').value = (ollama.repositories || []).join(',');
                 
                 // Clear existing repositories
                 document.getElementById('tool-repositories-container').innerHTML = '';
                 
                 // Add repositories
                 if (config.tool_repositories && config.tool_repositories.length > 0) {
+                    console.log('Adding repositories:', config.tool_repositories);
                     config.tool_repositories.forEach(repo => {
                         addRepository(repo);
                     });
+                } else {
+                    console.log('No repositories to add');
                 }
+                
+                console.log('Settings loaded successfully');
             } catch (error) {
                 console.error('Error loading settings:', error);
-                alert('Failed to load settings. Please check the console for details.');
+                console.error('Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+                
+                // Try to get more details if it's a fetch error
+                if (error instanceof TypeError && error.message.includes('fetch')) {
+                    console.error('Network error - check server connection');
+                }
+                
+                alert(`Failed to load settings: ${error.message}. Check console for details.`);
             }
         }
         
