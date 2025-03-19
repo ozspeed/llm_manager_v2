@@ -8,7 +8,7 @@ import re
 import json
 from pathlib import Path
 
-import config
+from models import config
 from models.database import add_model
 
 def detect_framework(file_path):

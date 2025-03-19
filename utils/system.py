@@ -7,7 +7,7 @@ import os
 import psutil
 import json
 
-import config
+from models import config
 
 def get_system_info():
     """Get system information including memory, CPU, and disk usage."""

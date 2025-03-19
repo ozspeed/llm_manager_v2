@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 import traceback
 
-import config
+from models import config
 
 def init_db():
     """Initialize the database and create tables if they don't exist."""

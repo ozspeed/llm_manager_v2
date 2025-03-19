@@ -1,10 +1,11 @@
 import os
 import json
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Default settings - only keeping model extensions as default
+# Default settings
 DEFAULT_SETTINGS = {
     "app": {
         "version": "1.2.0",
@@ -32,7 +33,7 @@ _settings = None
 
 def load_settings():
     """Load settings from settings.json file."""
-    global _settings
+    global _settings, config
     
     try:
         settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'settings.json')
@@ -83,6 +84,9 @@ def load_settings():
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         _settings = DEFAULT_SETTINGS.copy()  # Use defaults on error instead of empty settings
+    
+    # Update the config reference
+    _update_config_reference()
 
 def deep_update(target, source):
     """Recursively update target dict with values from source dict."""
@@ -191,6 +195,30 @@ def get_ollama_enabled():
 
 def get_ollama_repositories():
     return get_setting('frameworks.ollama.repositories', DEFAULT_SETTINGS['frameworks']['ollama']['repositories'])
+
+def get_app_version():
+    return get_setting('app.version', DEFAULT_SETTINGS['app']['version'])
+
+def get_tool_repositories():
+    return get_setting('tool_repositories', DEFAULT_SETTINGS['tool_repositories'])
+
+# For compatibility with the root config.py file
+def load_config():
+    """Alias for load_settings for backward compatibility."""
+    load_settings()
+
+def save_config():
+    """Alias for save_settings for backward compatibility."""
+    save_settings()
+
+# Make the settings accessible as config.config to maintain compatibility
+# Create a config variable that points to _settings
+config = _settings
+
+# Update the config reference whenever _settings is updated
+def _update_config_reference():
+    global config, _settings
+    config = _settings
 
 # Load settings on module import
 load_settings()

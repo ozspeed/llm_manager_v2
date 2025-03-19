@@ -7,7 +7,7 @@ import subprocess
 import re
 import json
 
-import config
+from models import config
 from models.database import add_model
 
 def parse_ollama_modelfile(modelfile_content):

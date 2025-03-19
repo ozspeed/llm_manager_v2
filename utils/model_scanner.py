@@ -9,7 +9,7 @@ import uuid
 import logging
 from typing import List, Dict, Any, Tuple
 
-import config
+from models import config
 from models.detection import is_shard_file, extract_base_name
 
 # Configure logging
