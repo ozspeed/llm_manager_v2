@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # AUTHENTICATION AND INITIALIZATION
 # =============================================================================
 
-def initialize_huggingface():
+def initialize_huggingface() -> bool:
     """Initialize the Hugging Face API with the stored token if available.
     
     This function attempts to authenticate with the Hugging Face API using
@@ -71,7 +71,7 @@ def initialize_huggingface():
 # MODEL DISCOVERY AND SEARCH
 # =============================================================================
 
-def get_popular_models(limit=12, model_type=None):
+def get_popular_models(limit: int = 12, model_type: str | None = None) -> list[dict]:
     """
     Get trending models from Hugging Face based on recent activity and popularity.
     
@@ -85,7 +85,7 @@ def get_popular_models(limit=12, model_type=None):
         model_type (str, optional): Type of model to filter by. Defaults to None.
         
     Returns:
-        list: List of trending model information dictionaries with the following keys:
+        list[dict]: List of trending model information dictionaries with the following keys:
             - id: Model ID (e.g., 'TheBloke/Llama-2-7B-GGUF')
             - name: Display name of the model
             - downloads: Number of downloads (if available)
@@ -193,7 +193,7 @@ def get_popular_models(limit=12, model_type=None):
         # Return hardcoded models as fallback
         return get_hardcoded_popular_models(limit)
         
-def get_hardcoded_popular_models(limit=12):
+def get_hardcoded_popular_models(limit: int = 12) -> list[dict]:
     """
     Get a list of hardcoded trending models as a fallback when API is not available.
     
@@ -201,7 +201,7 @@ def get_hardcoded_popular_models(limit=12):
         limit (int, optional): Maximum number of models to return
         
     Returns:
-        list: List of trending model information dictionaries
+        list[dict]: List of trending model information dictionaries
     """
     # Import datetime for generating recent timestamps
     from datetime import datetime, timedelta
@@ -353,7 +353,7 @@ def get_hardcoded_popular_models(limit=12):
     
     return popular_models[:limit]
 
-def search_models(query, model_type=None, limit=50):
+def search_models(query: str, model_type: str | None = None, limit: int = 50) -> list[dict]:
     """
     Search for models on Hugging Face.
     
@@ -363,7 +363,7 @@ def search_models(query, model_type=None, limit=50):
         limit (int, optional): Maximum number of results to return
         
     Returns:
-        list: List of model information dictionaries
+        list[dict]: List of model information dictionaries
     """
     try:
         # Check if Hugging Face API is enabled and configured
@@ -427,7 +427,7 @@ def search_models(query, model_type=None, limit=50):
         # Return hardcoded search results as fallback
         return search_hardcoded_models(query, model_type, limit)
 
-def search_hardcoded_models(query, model_type=None, limit=50):
+def search_hardcoded_models(query: str, model_type: str | None = None, limit: int = 50) -> list[dict]:
     """
     Search through hardcoded models when the API is not available.
     
@@ -437,7 +437,7 @@ def search_hardcoded_models(query, model_type=None, limit=50):
         limit (int, optional): Maximum number of results to return
         
     Returns:
-        list: List of matching model information dictionaries
+        list[dict]: List of matching model information dictionaries
     """
     # Get all hardcoded models
     all_models = get_hardcoded_popular_models(100)  # Get a larger set to search through
@@ -465,7 +465,7 @@ def search_hardcoded_models(query, model_type=None, limit=50):
 # MODEL DOWNLOAD AND MANAGEMENT
 # =============================================================================
 
-def download_model(model_id, filename=None):
+def download_model(model_id: str, filename: str | None = None) -> dict:
     """
     Download a model from Hugging Face to the draft download area.
     
@@ -569,7 +569,7 @@ def download_model(model_id, filename=None):
         logger.error(f"Error downloading model {model_id}: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def get_model_files(model_id):
+def get_model_files(model_id: str) -> dict:
     """Get a list of files for a specific model with their actual sizes.
     
     This function retrieves a list of files for a specific model from the Hugging Face API,
@@ -651,7 +651,7 @@ def get_model_files(model_id):
         logger.error(f"Error getting model files: {str(e)}")
         return {"success": False, "error": str(e)}
 
-def move_model_to_library(filepath):
+def move_model_to_library(filepath: str) -> dict:
     """
     Move a model from the draft download area to the model library.
     
@@ -745,7 +745,7 @@ def move_model_to_library(filepath):
 # DRAFT AREA MANAGEMENT
 # =============================================================================
 
-def list_draft_models():
+def list_draft_models() -> dict:
     """
     List all models in the draft download area following the publisher/model structure.
     
@@ -804,7 +804,7 @@ def list_draft_models():
         logger.error(f"Error listing draft models: {str(e)}")
         return []
 
-def delete_draft_model(filepath):
+def delete_draft_model(filepath: str) -> dict:
     """
     Delete a model from the draft download area.
     

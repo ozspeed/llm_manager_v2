@@ -31,7 +31,7 @@ from models import config
 # DATABASE INITIALIZATION AND SCHEMA MANAGEMENT
 # =============================================================================
 
-def init_db():
+def init_db() -> None:
     """Initialize the database and create tables if they don't exist.
     
     This function creates the SQLite database file if it doesn't exist
@@ -70,7 +70,7 @@ def init_db():
 # MODEL RETRIEVAL AND QUERYING
 # =============================================================================
 
-def get_all_models():
+def get_all_models() -> tuple[list[dict] | dict, int]:
     """Get all models from the database.
     
     This function retrieves all models from the database, ordered by name.
@@ -79,7 +79,7 @@ def get_all_models():
     
     Returns:
         tuple: A tuple containing:
-            - list: List of model dictionaries if successful
+            - list[dict] | dict: List of model dictionaries if successful or error dict
             - int: HTTP status code (200 for success, 500 for error)
             
     Each model dictionary contains the following keys:
@@ -117,7 +117,8 @@ def get_all_models():
 # MODEL CREATION AND MANAGEMENT
 # =============================================================================
 
-def add_model(name, framework, path, model_config=None, size_override=None):
+def add_model(name: str, framework: str, path: str, model_config: dict | str | None = None, 
+           size_override: float | None = None) -> tuple[dict, int]:
     """Add a model to the database.
     
     This function adds a new model to the database with the provided metadata.
@@ -226,7 +227,7 @@ def add_model(name, framework, path, model_config=None, size_override=None):
         traceback.print_exc()
         return {"error": str(e)}, 500
 
-def delete_model(model_id, delete_files=False):
+def delete_model(model_id: int, delete_files: bool = False) -> tuple[dict, int]:
     """Delete a model from the database by ID.
     
     This function removes a model from the database and optionally deletes
@@ -304,7 +305,7 @@ def delete_model(model_id, delete_files=False):
 # DATABASE MAINTENANCE
 # =============================================================================
 
-def reset_database():
+def reset_database() -> tuple[dict, int]:
     """Reset the database by dropping and recreating the models table.
     
     This function completely resets the database by dropping the models table
