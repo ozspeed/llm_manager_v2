@@ -144,18 +144,31 @@
 
                 <!-- Results Section -->
                 <div class="row mb-4">
-                    <div class="col-md-12"> <!-- Changed from col-md-8 to col-md-12 to take full width -->
+                    <div class="col-md-12">
                         <div class="card">
                             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0">Search Results</h5>
+                                <h5 class="mb-0" id="results-title">Trending Models</h5>
                                 <span id="result-count" class="badge bg-light text-dark">0 models found</span>
                             </div>
                             <div class="card-body">
+                                <!-- Recent Searches Section -->
+                                <div id="recent-searches-container" class="mb-4">
+                                    <h6 class="mb-3">Recent Searches</h6>
+                                    <div id="recent-searches" class="d-flex flex-wrap gap-2">
+                                        <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <span class="text-muted">Loading recent searches...</span>
+                                    </div>
+                                </div>
+                                
                                 <div id="search-results" class="row g-3">
                                     <!-- Search results will be displayed here -->
-                                    <div class="col-12 text-center text-muted py-5">
-                                        <i class="bi bi-search" style="font-size: 2rem;"></i>
-                                        <p class="mt-3">Search for models to see results</p>
+                                    <div class="col-12 text-center text-muted py-5" id="loading-models">
+                                        <div class="spinner-border" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-3">Loading trending models...</p>
                                     </div>
                                 </div>
                             </div>
@@ -230,10 +243,263 @@
         let currentModelId = null;
         let currentModelFiles = [];
         
+        // Define global loadDraftModels function to avoid errors
+        window.loadDraftModels = async function() {
+            try {
+                console.log('Loading draft models...');
+                const response = await fetch('/api/huggingface/draft-models');
+                const data = await response.json();
+                
+                const draftModelsContainer = document.getElementById('draft-models-container');
+                if (!draftModelsContainer) {
+                    console.log('Draft models container not found');
+                    return;
+                }
+                
+                if (data.success && data.models.length > 0) {
+                    draftModelsContainer.innerHTML = '';
+                    data.models.forEach(model => {
+                        const card = document.createElement('div');
+                        card.className = 'card mb-3 draft-model-card';
+                        card.innerHTML = `
+                            <div class="card-body">
+                                <h5 class="card-title">${model.name}</h5>
+                                <p class="card-text">Size: ${formatBytes(model.size)}</p>
+                                <p class="card-text">Path: ${model.path}</p>
+                                <div class="d-flex justify-content-between">
+                                    <button class="btn btn-sm btn-success move-to-library" data-model-id="${model.id}">Move to Library</button>
+                                    <button class="btn btn-sm btn-danger delete-draft" data-model-id="${model.id}">Delete</button>
+                                </div>
+                            </div>
+                        `;
+                        draftModelsContainer.appendChild(card);
+                        
+                        // Add event listeners to the buttons
+                        const moveBtn = card.querySelector('.move-to-library');
+                        if (moveBtn) {
+                            moveBtn.addEventListener('click', function() {
+                                const modelId = this.getAttribute('data-model-id');
+                                moveDraftToLibrary(modelId, model.name);
+                            });
+                        }
+                        
+                        const deleteBtn = card.querySelector('.delete-draft');
+                        if (deleteBtn) {
+                            deleteBtn.addEventListener('click', function() {
+                                const modelId = this.getAttribute('data-model-id');
+                                deleteDraftModel(modelId, model.name);
+                            });
+                        }
+                    });
+                } else {
+                    draftModelsContainer.innerHTML = '<p class="text-muted">No draft models available</p>';
+                }
+            } catch (error) {
+                console.error('Error loading draft models:', error);
+            }
+        };
+        
+        // Format bytes to human-readable format
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            if (!bytes) return 'Unknown';
+            
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+        
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
+            // Define the loadDraftModels function if it doesn't exist
+            if (typeof loadDraftModels !== 'function') {
+                window.loadDraftModels = async function() {
+                    try {
+                        console.log('[DRAFT MODELS] Loading draft models...');
+                        
+                        // Get the container element
+                        const draftModelsContainer = document.getElementById('draft-models-container');
+                        if (!draftModelsContainer) {
+                            console.log('[DRAFT MODELS] Container not found');
+                            return;
+                        }
+                        
+                        // Fetch draft models from API
+                        const response = await fetch('/api/huggingface/draft-models');
+                        if (!response.ok) {
+                            throw new Error(`API returned ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const data = await response.json();
+                        console.log('[DRAFT MODELS] Data received:', data);
+                        
+                        // Clear the container
+                        draftModelsContainer.innerHTML = '';
+                        
+                        // Check if we have models to display
+                        if (data.success && data.models && data.models.length > 0) {
+                            // Create and append model cards
+                            data.models.forEach(model => {
+                                const card = document.createElement('div');
+                                card.className = 'card mb-3 draft-model-card';
+                                card.innerHTML = `
+                                    <div class="card-body">
+                                        <h5 class="card-title">${model.name}</h5>
+                                        <p class="card-text">Size: ${formatBytes(model.size)}</p>
+                                        <p class="card-text">Path: ${model.path}</p>
+                                        <div class="d-flex justify-content-between">
+                                            <button class="btn btn-sm btn-success move-to-library" data-model-id="${model.id}">Move to Library</button>
+                                            <button class="btn btn-sm btn-danger delete-draft" data-model-id="${model.id}">Delete</button>
+                                        </div>
+                                    </div>
+                                `;
+                                draftModelsContainer.appendChild(card);
+                                
+                                // Add event listeners to the buttons
+                                const moveBtn = card.querySelector('.move-to-library');
+                                if (moveBtn) {
+                                    moveBtn.addEventListener('click', function() {
+                                        const modelId = this.getAttribute('data-model-id');
+                                        moveDraftToLibrary(modelId, model.name);
+                                    });
+                                }
+                                
+                                const deleteBtn = card.querySelector('.delete-draft');
+                                if (deleteBtn) {
+                                    deleteBtn.addEventListener('click', function() {
+                                        const modelId = this.getAttribute('data-model-id');
+                                        deleteDraftModel(modelId, model.name);
+                                    });
+                                }
+                            });
+                        } else {
+                            // No models to display
+                            const noModelsElement = document.createElement('p');
+                            noModelsElement.className = 'text-muted';
+                            noModelsElement.textContent = 'No draft models available';
+                            draftModelsContainer.appendChild(noModelsElement);
+                        }
+                    } catch (error) {
+                        console.error('[DRAFT MODELS] Error:', error);
+                        // Only log to activity if it's not the specific error we're trying to avoid
+                        if (!error.message || !error.message.includes('null is not an object')) {
+                            safeLogActivity(`Error loading draft models: ${error.message || 'Unknown error'}`, 'warning');
+                        }
+                    }
+                };
+                
+                // Function to move a draft model to the library
+                window.moveDraftToLibrary = async function(modelId, modelName) {
+                    try {
+                        safeLogActivity(`Moving ${modelName} to library...`, 'info');
+                        
+                        // First, get the model path from the draft models list
+                        const draftResponse = await fetch('/api/huggingface/draft-models');
+                        const draftData = await draftResponse.json();
+                        
+                        if (!draftData.success) {
+                            throw new Error('Failed to fetch draft models');
+                        }
+                        
+                        // Find the model with the matching ID
+                        const model = draftData.models.find(m => m.id === modelId);
+                        if (!model) {
+                            throw new Error(`Model with ID ${modelId} not found in draft area`);
+                        }
+                        
+                        // Send the filepath parameter to the move-to-library endpoint
+                        const response = await fetch('/api/huggingface/move-to-library', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                filepath: model.path
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            safeLogActivity(`Successfully moved ${modelName} to library`, 'success');
+                            safeShowToast(`Moved ${modelName} to library`, 'success');
+                            
+                            // Refresh the draft models list with a small delay to ensure server state is updated
+                            setTimeout(() => {
+                                try {
+                                    if (typeof loadDraftModels === 'function') {
+                                        loadDraftModels();
+                                    }
+                                } catch (refreshError) {
+                                    console.error('Error refreshing draft models list:', refreshError);
+                                }
+                            }, 500);
+                        } else {
+                            safeLogActivity(`Error moving ${modelName} to library: ${data.error}`, 'danger');
+                            alert(`Error moving model to library: ${data.error}`);
+                        }
+                    } catch (error) {
+                        console.error('Error moving draft to library:', error);
+                        safeLogActivity(`Error moving ${modelName} to library: ${error.message}`, 'danger');
+                        alert(`Error moving model to library: ${error.message}`);
+                    }
+                };
+                
+                // Function to delete a draft model
+                window.deleteDraftModel = async function(modelId, modelName) {
+                    if (!confirm(`Are you sure you want to delete ${modelName}?`)) {
+                        return;
+                    }
+                    
+                    try {
+                        safeLogActivity(`Deleting ${modelName} from draft area...`, 'info');
+                        
+                        const response = await fetch('/api/huggingface/delete-draft', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                model_id: modelId
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            safeLogActivity(`Successfully deleted ${modelName} from draft area`, 'success');
+                            safeShowToast(`Deleted ${modelName}`, 'success');
+                            
+                            // Refresh the draft models list with a small delay to ensure server state is updated
+                            setTimeout(() => {
+                                try {
+                                    if (typeof loadDraftModels === 'function') {
+                                        loadDraftModels();
+                                    }
+                                } catch (refreshError) {
+                                    console.error('Error refreshing draft models list:', refreshError);
+                                }
+                            }, 500);
+                        } else {
+                            safeLogActivity(`Error deleting ${modelName}: ${data.error}`, 'danger');
+                            alert(`Error deleting model: ${data.error}`);
+                        }
+                    } catch (error) {
+                        console.error('Error deleting draft model:', error);
+                        safeLogActivity(`Error deleting ${modelName}: ${error.message}`, 'danger');
+                        alert(`Error deleting model: ${error.message}`);
+                    }
+                };
+            }
+            
             // Load draft models on page load
-            loadDraftModels();
+            if (typeof loadDraftModels === 'function') {
+                loadDraftModels();
+            }
             
             // Set up event listeners
             document.getElementById('search-form').addEventListener('submit', function(e) {
@@ -264,11 +530,24 @@
             const searchStatus = document.getElementById('search-status');
             searchStatus.classList.remove('d-none');
             
+            // Update UI to show we're searching
+            document.getElementById('results-title').textContent = `Search Results: "${query}"`;
+            
             // Clear previous results
             const resultsContainer = document.getElementById('search-results');
-            resultsContainer.innerHTML = '';
+            resultsContainer.innerHTML = `
+                <div class="col-12 text-center text-muted py-5">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Searching for "${query}"...</p>
+                </div>
+            `;
             
             try {
+                // Refresh recent searches to include this new search
+                loadRecentSearches();
+                
                 const response = await fetch(`/api/huggingface/search?query=${encodeURIComponent(query)}&model_type=${encodeURIComponent(modelType)}`);
                 const data = await response.json();
                 
@@ -277,6 +556,9 @@
                 
                 // Update result count
                 document.getElementById('result-count').textContent = `${data.count} models found`;
+                
+                // Clear results container
+                resultsContainer.innerHTML = '';
                 
                 if (data.success && data.results.length > 0) {
                     // Display results
@@ -289,6 +571,9 @@
                         <div class="col-12 text-center text-muted py-5">
                             <i class="bi bi-emoji-frown" style="font-size: 2rem;"></i>
                             <p class="mt-3">No models found for "${query}"</p>
+                            <button class="btn btn-outline-primary mt-3" onclick="loadPopularModels()">
+                                <i class="bi bi-arrow-left"></i> Back to Trending Models
+                            </button>
                         </div>
                     `;
                 }
@@ -299,6 +584,9 @@
                     <div class="col-12 text-center text-danger py-5">
                         <i class="bi bi-exclamation-triangle" style="font-size: 2rem;"></i>
                         <p class="mt-3">Error searching models: ${error.message}</p>
+                        <button class="btn btn-outline-primary mt-3" onclick="loadPopularModels()">
+                            <i class="bi bi-arrow-left"></i> Back to Trending Models
+                        </button>
                     </div>
                 `;
             }
@@ -461,50 +749,81 @@
                 const modelExtensions = [".gguf", ".ggml", ".bin", ".safetensors", ".onnx", ".pt", ".pth"];
                 const configFiles = ["config.json", "tokenizer.model", "tokenizer.json", "vocab.json", "merges.txt"];
                 
+                // Handle both old format (strings) and new format (objects with name and size)
+                const normalizedFiles = data.files.map(file => {
+                    if (typeof file === 'object' && file.name) {
+                        return file; // Already in the right format
+                    } else {
+                        return { name: file, size: 0 }; // Convert string to object format
+                    }
+                });
+                
                 // Sort files by importance and filter out less relevant ones
-                const sortedFiles = data.files.sort((a, b) => {
+                const sortedFiles = normalizedFiles.sort((a, b) => {
+                    const fileA = a.name;
+                    const fileB = b.name;
+                    
                     // Get file extensions
-                    const extA = a.substring(a.lastIndexOf('.'));
-                    const extB = b.substring(b.lastIndexOf('.'));
+                    const extA = fileA.substring(fileA.lastIndexOf('.'));
+                    const extB = fileB.substring(fileB.lastIndexOf('.'));
                     
                     // Model files come first
-                    const isModelA = modelExtensions.some(ext => a.endsWith(ext));
-                    const isModelB = modelExtensions.some(ext => b.endsWith(ext));
+                    const isModelA = modelExtensions.some(ext => fileA.endsWith(ext));
+                    const isModelB = modelExtensions.some(ext => fileB.endsWith(ext));
                     
                     if (isModelA && !isModelB) return -1;
                     if (!isModelA && isModelB) return 1;
                     
                     // Config files come next
-                    const isConfigA = configFiles.some(file => a.endsWith(file));
-                    const isConfigB = configFiles.some(file => b.endsWith(file));
+                    const isConfigA = configFiles.some(file => fileA.endsWith(file));
+                    const isConfigB = configFiles.some(file => fileB.endsWith(file));
                     
                     if (isConfigA && !isConfigB) return -1;
                     if (!isConfigA && isConfigB) return 1;
                     
                     // Sort by name
-                    return a.localeCompare(b);
+                    return fileA.localeCompare(fileB);
                 });
                 
-                // Store the files for later use
+                // Store the files for later use - keep the full objects
                 currentModelFiles = sortedFiles;
                 
-                // Add files to the list with estimated file sizes
+                // Add files to the list with actual file sizes
                 filesList.innerHTML = '';
                 currentModelFiles.forEach(file => {
-                    // Get just the filename without the path
-                    const filename = file.split('/').pop();
+                    // Check if file is an object with name and size properties
+                    let filename, fileSize, filePath;
                     
-                    // Estimate file size based on file type and name
-                    let estimatedSize = estimateFileSize(file, modelId);
+                    if (typeof file === 'object' && file.name) {
+                        // New API format with file sizes
+                        filename = file.name.split('/').pop();
+                        fileSize = file.size || 0;
+                        filePath = file.name;
+                    } else {
+                        // Old format (just strings)
+                        filename = file.split('/').pop();
+                        fileSize = 0;
+                        filePath = file;
+                    }
+                    
+                    // Use actual file size if available, otherwise estimate
+                    let sizeDisplay;
+                    if (fileSize > 0) {
+                        sizeDisplay = formatBytes(fileSize);
+                    } else {
+                        // Fallback to estimation only if actual size is not available
+                        fileSize = estimateFileSize(filePath, modelId);
+                        sizeDisplay = `est. ${formatBytes(fileSize)}`;
+                    }
                     
                     const li = document.createElement('li');
                     li.className = 'list-group-item d-flex justify-content-between align-items-center';
                     li.innerHTML = `
                         <div>
                             <div>${filename}</div>
-                            <small class="text-muted">${formatBytes(estimatedSize)}</small>
+                            <small class="text-muted">${sizeDisplay}</small>
                         </div>
-                        <button class="btn btn-sm btn-primary download-file-btn" data-file="${file}">
+                        <button class="btn btn-sm btn-primary download-file-btn" data-file="${filePath}">
                             <i class="bi bi-cloud-download"></i> Download
                         </button>
                     `;
@@ -539,16 +858,23 @@
         function estimateFileSize(filename, modelId) {
             // Extract file extension
             const ext = filename.split('.').pop().toLowerCase();
+            const lowerModelId = modelId.toLowerCase();
+            const lowerFilename = filename.toLowerCase();
             
             // Base size estimates in bytes
             const sizeEstimates = {
                 'gguf': {
                     'base': 4 * 1024 * 1024 * 1024, // 4GB for base models
-                    'q4_0': 2 * 1024 * 1024 * 1024, // 2GB for 4-bit quantized
-                    'q4_1': 2.2 * 1024 * 1024 * 1024, // 2.2GB
-                    'q5_0': 2.5 * 1024 * 1024 * 1024, // 2.5GB
-                    'q5_1': 2.7 * 1024 * 1024 * 1024, // 2.7GB
-                    'q8_0': 3.5 * 1024 * 1024 * 1024  // 3.5GB
+                    'q2_k': 1 * 1024 * 1024 * 1024, // 1GB for 2-bit quantized
+                    'q3_k_m': 1.4 * 1024 * 1024 * 1024, // 1.4GB for 3-bit quantized
+                    'q4_0': 1.8 * 1024 * 1024 * 1024, // 1.8GB for 4-bit quantized
+                    'q4_1': 2 * 1024 * 1024 * 1024, // 2GB
+                    'q4_k_m': 2 * 1024 * 1024 * 1024, // 2GB
+                    'q5_0': 2.2 * 1024 * 1024 * 1024, // 2.2GB
+                    'q5_1': 2.4 * 1024 * 1024 * 1024, // 2.4GB
+                    'q5_k_m': 2.3 * 1024 * 1024 * 1024, // 2.3GB
+                    'q6_k': 2.7 * 1024 * 1024 * 1024, // 2.7GB
+                    'q8_0': 3.2 * 1024 * 1024 * 1024  // 3.2GB
                 },
                 'bin': 5 * 1024 * 1024 * 1024, // 5GB
                 'safetensors': 4 * 1024 * 1024 * 1024, // 4GB
@@ -558,41 +884,85 @@
                 'md': 50 * 1024 // 50KB for markdown files
             };
             
-            // Adjust size based on model name (7B, 13B, etc.)
-            let sizeFactor = 1.0;
-            if (modelId.includes('7b') || modelId.includes('7B')) {
-                sizeFactor = 1.0; // Base factor for 7B models
-            } else if (modelId.includes('13b') || modelId.includes('13B')) {
-                sizeFactor = 1.8; // 13B models are ~1.8x larger than 7B
-            } else if (modelId.includes('70b') || modelId.includes('70B')) {
-                sizeFactor = 10.0; // 70B models are ~10x larger than 7B
+            // Special case for specific models
+            if (lowerModelId.includes('phi-3') || lowerModelId.includes('phi3')) {
+                // Phi-3 models are smaller
+                if (lowerModelId.includes('mini')) {
+                    // Phi-3-mini base size is around 1.8GB
+                    sizeEstimates.gguf.base = 1.8 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q4_0 = 1 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q4_1 = 1.1 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q5_0 = 1.2 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q5_1 = 1.3 * 1024 * 1024 * 1024;
+                } else if (lowerModelId.includes('medium')) {
+                    // Phi-3-medium base size is around 3.8GB
+                    sizeEstimates.gguf.base = 3.8 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q4_0 = 2 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q4_1 = 2.2 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q5_0 = 2.4 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q5_1 = 2.6 * 1024 * 1024 * 1024;
+                }
+            } else if (lowerModelId.includes('phi-2') || lowerModelId.includes('phi2')) {
+                // Phi-2 models are even smaller
+                sizeEstimates.gguf.base = 1.7 * 1024 * 1024 * 1024; // 1.7GB base size
+                sizeEstimates.gguf.q2_k = 0.6 * 1024 * 1024 * 1024; // 600MB
+                sizeEstimates.gguf.q3_k_m = 0.8 * 1024 * 1024 * 1024; // 800MB
+                sizeEstimates.gguf.q3_k_s = 0.75 * 1024 * 1024 * 1024; // 750MB
+                sizeEstimates.gguf.q4_0 = 0.9 * 1024 * 1024 * 1024; // 900MB
+                sizeEstimates.gguf.q4_1 = 1 * 1024 * 1024 * 1024; // 1GB
+                sizeEstimates.gguf.q5_0 = 1.1 * 1024 * 1024 * 1024; // 1.1GB
+                sizeEstimates.gguf.q5_1 = 1.2 * 1024 * 1024 * 1024; // 1.2GB
+                sizeEstimates.gguf.q8_0 = 1.5 * 1024 * 1024 * 1024; // 1.5GB
+            } else if (lowerModelId.includes('gemma')) {
+                // Gemma models
+                if (lowerModelId.includes('2b')) {
+                    sizeEstimates.gguf.base = 2 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q4_0 = 1 * 1024 * 1024 * 1024;
+                } else if (lowerModelId.includes('7b')) {
+                    sizeEstimates.gguf.base = 7 * 1024 * 1024 * 1024;
+                    sizeEstimates.gguf.q4_0 = 3.5 * 1024 * 1024 * 1024;
+                }
             }
             
-            // Check if it's a quantized model
-            let quantizationFactor = 1.0;
-            if (filename.includes('q4_0')) {
-                quantizationFactor = 0.5; // 4-bit quantization reduces size by ~50%
-            } else if (filename.includes('q4_1')) {
-                quantizationFactor = 0.55;
-            } else if (filename.includes('q5_0') || filename.includes('q5_1')) {
-                quantizationFactor = 0.65; // 5-bit quantization reduces size by ~35%
-            } else if (filename.includes('q8_0')) {
-                quantizationFactor = 0.85; // 8-bit quantization reduces size by ~15%
+            // Adjust size based on model name (7B, 13B, etc.)
+            let sizeFactor = 1.0;
+            if (lowerModelId.includes('1b') || lowerModelId.includes('1.6b')) {
+                sizeFactor = 0.3; // 1B models are ~0.3x the size of 7B models
+            } else if (lowerModelId.includes('2b') || lowerModelId.includes('3b')) {
+                sizeFactor = 0.4; // 2-3B models are ~0.4x the size of 7B models
+            } else if (lowerModelId.includes('7b')) {
+                sizeFactor = 1.0; // Base factor for 7B models
+            } else if (lowerModelId.includes('8b')) {
+                sizeFactor = 1.1; // 8B models are ~1.1x larger than 7B
+            } else if (lowerModelId.includes('13b')) {
+                sizeFactor = 1.8; // 13B models are ~1.8x larger than 7B
+            } else if (lowerModelId.includes('34b') || lowerModelId.includes('35b')) {
+                sizeFactor = 5.0; // 34-35B models are ~5x larger than 7B
+            } else if (lowerModelId.includes('70b')) {
+                sizeFactor = 10.0; // 70B models are ~10x larger than 7B
             }
             
             // Get base size for the extension
             let baseSize = 1024 * 1024 * 1024; // Default 1GB if unknown
             
+            // Find the quantization level if present
+            let quantLevel = null;
+            const quantPatterns = ['q2_k', 'q3_k_m', 'q3_k_s', 'q4_0', 'q4_1', 'q4_k_m', 'q5_0', 'q5_1', 'q5_k_m', 'q6_k', 'q8_0'];
+            for (const pattern of quantPatterns) {
+                if (lowerFilename.includes(pattern)) {
+                    quantLevel = pattern;
+                    break;
+                }
+            }
+            
             if (ext in sizeEstimates) {
-                if (ext === 'gguf' && (filename.includes('q4_0') || filename.includes('q4_1') || 
-                                      filename.includes('q5_0') || filename.includes('q5_1') || 
-                                      filename.includes('q8_0'))) {
-                    // For quantized GGUF models, use the specific quantization size
-                    for (const quantKey in sizeEstimates.gguf) {
-                        if (filename.includes(quantKey)) {
-                            baseSize = sizeEstimates.gguf[quantKey];
-                            break;
-                        }
+                if (ext === 'gguf' && quantLevel) {
+                    // For quantized GGUF models, use the specific quantization size if available
+                    if (quantLevel in sizeEstimates.gguf) {
+                        baseSize = sizeEstimates.gguf[quantLevel];
+                    } else {
+                        // Fallback to base size with a reduction factor
+                        baseSize = sizeEstimates.gguf.base * 0.5;
                     }
                 } else if (ext === 'gguf') {
                     // For non-quantized GGUF models
@@ -604,7 +974,7 @@
             }
             
             // Calculate final estimated size
-            return Math.round(baseSize * sizeFactor * quantizationFactor);
+            return Math.round(baseSize * sizeFactor);
         }
         
         // Show download options modal
@@ -614,18 +984,60 @@
             
             // Add file options with sizes
             currentModelFiles.forEach(file => {
-                const estimatedSize = estimateFileSize(file, currentModelId);
-                const displayFilename = file.split('/').pop(); // Get just the filename without the path
+                // Get file path and size based on format
+                let filePath, fileSize, displayFilename;
+                
+                if (typeof file === 'object' && file.name) {
+                    // New format (object with name and size)
+                    filePath = file.name;
+                    fileSize = file.size || 0;
+                    displayFilename = filePath.split('/').pop();
+                } else {
+                    // Old format (just string)
+                    filePath = file;
+                    displayFilename = filePath.split('/').pop();
+                    fileSize = estimateFileSize(filePath, currentModelId);
+                }
                 
                 const option = document.createElement('option');
-                option.value = file; // Keep the full path as the value
-                option.textContent = `${displayFilename} (${formatBytes(estimatedSize)})`;
+                option.value = filePath; // Keep the full path as the value
+                option.textContent = `${displayFilename} (${formatBytes(fileSize)})`;
                 fileSelector.appendChild(option);
             });
             
             // Show the modal
             const modal = new bootstrap.Modal(document.getElementById('download-options-modal'));
             modal.show();
+        }
+        
+        // Safe logging function that checks if parent window access is available
+        function safeLogActivity(message, type = 'info') {
+            try {
+                // Check if we can access the parent window and if it has the logActivity function
+                if (window.parent && typeof window.parent.logActivity === 'function') {
+                    window.parent.logActivity(message, type);
+                } else {
+                    // Fallback to console logging if parent window access is not available
+                    console.log(`[${type.toUpperCase()}] ${message}`);
+                }
+            } catch (e) {
+                // If there's a cross-origin error, just log to console
+                console.log(`[${type.toUpperCase()}] ${message}`);
+                console.warn('Could not access parent window for logging:', e);
+            }
+        }
+        
+        // Safe toast notification function
+        function safeShowToast(message, type = 'info') {
+            try {
+                if (window.parent && typeof window.parent.showToast === 'function') {
+                    window.parent.showToast(message, type);
+                    return true;
+                }
+            } catch (e) {
+                console.warn('Could not access parent window for toast:', e);
+            }
+            return false;
         }
         
         // Download a specific file
@@ -650,6 +1062,31 @@
                 // Get just the filename for display purposes
                 const displayFilename = filename.split('/').pop();
                 
+                // Try to find the actual file size from currentModelFiles
+                let fileSize = 0;
+                let sizeText = '';
+                
+                // Look for the file in currentModelFiles to get its actual size
+                const fileInfo = currentModelFiles.find(f => {
+                    if (typeof f === 'object' && f.name) {
+                        return f.name === filename;
+                    } else {
+                        return f === filename;
+                    }
+                });
+                
+                if (fileInfo && typeof fileInfo === 'object' && fileInfo.size) {
+                    fileSize = fileInfo.size;
+                    sizeText = ` (${formatBytes(fileSize)})`;
+                } else {
+                    // Fall back to estimation if we can't find the actual size
+                    fileSize = estimateFileSize(filename, currentModelId);
+                    sizeText = fileSize > 0 ? ` (est. ${formatBytes(fileSize)})` : '';
+                }
+                
+                // Log the start of the download
+                safeLogActivity(`Starting download of ${displayFilename} from ${modelId}${sizeText}...`, 'info');
+                
                 const response = await fetch('/api/huggingface/download', {
                     method: 'POST',
                     headers: {
@@ -670,12 +1107,30 @@
                 }
                 
                 if (data.success) {
-                    alert(`Successfully downloaded ${displayFilename} to draft area`);
-                    // Refresh draft models list
-                    loadDraftModels();
+                    // Log successful download with actual file size
+                    if (data.fileSize) {
+                        safeLogActivity(`Successfully downloaded ${displayFilename} (${formatBytes(data.fileSize)}) to draft area`, 'success');
+                    } else {
+                        safeLogActivity(`Successfully downloaded ${displayFilename} to draft area`, 'success');
+                    }
+                    
+                    // Show toast notification if available
+                    if (!safeShowToast(`Downloaded ${displayFilename} successfully`, 'success')) {
+                        alert(`Successfully downloaded ${displayFilename} to draft area`);
+                    }
+                    
+                    // Refresh draft models list if the function exists
+                    if (typeof loadDraftModels === 'function') {
+                        loadDraftModels();
+                    } else {
+                        console.log('Draft models refresh function not available');
+                    }
                     // Close the modal
                     bootstrap.Modal.getInstance(document.getElementById('model-details-modal')).hide();
                 } else {
+                    // Log failed download
+                    safeLogActivity(`Error downloading ${displayFilename}: ${data.error}`, 'danger');
+                    
                     if (data.error === "Hugging Face API not initialized") {
                         // Show a more helpful error message with instructions
                         const errorMessage = `Hugging Face API is not initialized. Please go to Settings and:
@@ -687,6 +1142,10 @@
                 }
             } catch (error) {
                 console.error('Error downloading file:', error);
+                
+                // Log error
+                safeLogActivity(`Error downloading file: ${error.message}`, 'danger');
+                
                 alert(`Error downloading file: ${error.message}`);
             }
         }
@@ -729,12 +1188,101 @@
             }
         }
         
+        // Load popular models
+        async function loadPopularModels() {
+            try {
+                const resultsContainer = document.getElementById('search-results');
+                const loadingElement = document.getElementById('loading-models');
+                
+                // Update UI to show we're loading trending models
+                document.getElementById('results-title').textContent = 'Trending Models';
+                
+                const response = await fetch('/api/huggingface/popular-models');
+                const data = await response.json();
+                
+                // Remove loading indicator
+                if (loadingElement) {
+                    loadingElement.remove();
+                }
+                
+                // Update result count
+                document.getElementById('result-count').textContent = `${data.count} models found`;
+                
+                if (data.success && data.results.length > 0) {
+                    // Display results
+                    data.results.forEach(model => {
+                        resultsContainer.appendChild(createModelCard(model));
+                    });
+                } else {
+                    // No results found
+                    resultsContainer.innerHTML = `
+                        <div class="col-12 text-center text-muted py-5">
+                            <i class="bi bi-emoji-frown" style="font-size: 2rem;"></i>
+                            <p class="mt-3">No trending models found. Try searching instead.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading popular models:', error);
+                const resultsContainer = document.getElementById('search-results');
+                resultsContainer.innerHTML = `
+                    <div class="col-12 text-center text-danger py-5">
+                        <i class="bi bi-exclamation-triangle" style="font-size: 2rem;"></i>
+                        <p class="mt-3">Error loading trending models: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Load recent searches
+        async function loadRecentSearches() {
+            try {
+                const container = document.getElementById('recent-searches');
+                
+                const response = await fetch('/api/huggingface/recent-searches');
+                const data = await response.json();
+                
+                // Clear loading indicator
+                container.innerHTML = '';
+                
+                if (data.success && data.searches.length > 0) {
+                    // Display recent searches as clickable badges
+                    data.searches.forEach(search => {
+                        const badge = document.createElement('button');
+                        badge.className = 'btn btn-sm btn-outline-secondary';
+                        badge.textContent = search.query;
+                        badge.title = `Search for "${search.query}"`;
+                        
+                        // Add click handler to perform the search
+                        badge.addEventListener('click', function() {
+                            document.getElementById('search-query').value = search.query;
+                            if (search.model_type) {
+                                document.getElementById('model-type').value = search.model_type;
+                            }
+                            searchModels();
+                        });
+                        
+                        container.appendChild(badge);
+                    });
+                } else {
+                    // No recent searches
+                    container.innerHTML = '<span class="text-muted">No recent searches</span>';
+                }
+            } catch (error) {
+                console.error('Error loading recent searches:', error);
+                const container = document.getElementById('recent-searches');
+                container.innerHTML = '<span class="text-danger">Error loading recent searches</span>';
+            }
+        }
+        
         // Document ready function
         document.addEventListener('DOMContentLoaded', function() {
             // Check if Hugging Face API is configured
             checkHuggingFaceConfig();
             
-            // Draft models section removed
+            // Load popular models and recent searches
+            loadPopularModels();
+            loadRecentSearches();
             
             // Add event listeners for search form
             document.getElementById('search-form').addEventListener('submit', function(e) {

@@ -1144,85 +1144,206 @@
 
         // Load draft models from Hugging Face with limit
         async function loadDraftModels() {
-            try {
-                const response = await fetch('/api/huggingface/draft-models');
-                const data = await response.json();
-                
-                const container = document.getElementById('draft-models-container');
-                const noModelsMessage = document.getElementById('no-drafts-message');
-                const viewAllBtn = document.getElementById('view-all-drafts-btn');
-                
-                if (data.success && data.models.length > 0) {
-                    // Hide the no drafts message
-                    noModelsMessage.style.display = 'none';
+            console.log('[Load Draft Models] Function called');
+            
+            // Return a promise that can be chained with .catch()
+            return new Promise(async (resolve, reject) => {
+                try {
+                    console.log('[Load Draft Models] Fetching draft models from API');
+                    const response = await fetch('/api/huggingface/draft-models');
                     
-                    // Update draft count
-                    document.getElementById('draft-count').textContent = data.models.length;
-                    
-                    // Sort models by modified date (newest first)
-                    const sortedModels = data.models.sort((a, b) => {
-                        return new Date(b.modified || 0) - new Date(a.modified || 0);
-                    });
-                    
-                    // Show View All button if there are more than 5 models
-                    if (sortedModels.length > 5) {
-                        viewAllBtn.style.display = 'inline-block';
-                        viewAllBtn.onclick = function() {
-                            // Show all models
-                            displayDraftModels(sortedModels);
-                            // Hide the button after clicking
-                            this.style.display = 'none';
-                        };
-                    } else {
-                        viewAllBtn.style.display = 'none';
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`[Load Draft Models] API returned error status: ${response.status}`, errorText);
+                        reject(new Error(`API error: ${response.status} ${response.statusText}`));
+                        return;
                     }
                     
-                    // Display limited models (max 5)
-                    displayDraftModels(sortedModels.slice(0, 5));
-                } else {
-                    // Show the no drafts message
-                    noModelsMessage.style.display = 'block';
-                    container.innerHTML = '';
-                    container.appendChild(noModelsMessage);
+                    console.log('[Load Draft Models] Parsing API response');
+                    const data = await response.json();
+                    console.log('[Load Draft Models] Received data:', data);
                     
-                    // Reset draft count
-                    document.getElementById('draft-count').textContent = '0';
-                    viewAllBtn.style.display = 'none';
+                    const container = document.getElementById('draft-models-container');
+                    const noModelsMessage = document.getElementById('no-drafts-message');
+                    const viewAllBtn = document.getElementById('view-all-drafts-btn');
+                    
+                    if (data.success && data.models && data.models.length > 0) {
+                        console.log(`[Load Draft Models] Processing ${data.models.length} draft models`);
+                        // Hide the no drafts message if it exists
+                        if (noModelsMessage) {
+                            noModelsMessage.style.display = 'none';
+                        }
+                        
+                        // Update draft count if element exists
+                        const draftCount = document.getElementById('draft-count');
+                        if (draftCount) {
+                            draftCount.textContent = data.models.length;
+                        }
+                        
+                        // Sort models by modified date (newest first)
+                        const sortedModels = data.models.sort((a, b) => {
+                            return new Date(b.modified || 0) - new Date(a.modified || 0);
+                        });
+                        
+                        // Show View All button if there are more than 5 models
+                        if (sortedModels.length > 5) {
+                            viewAllBtn.style.display = 'inline-block';
+                            viewAllBtn.onclick = function() {
+                                // Show all models
+                                displayDraftModels(sortedModels);
+                                // Hide the button after clicking
+                                this.style.display = 'none';
+                            };
+                        } else {
+                            viewAllBtn.style.display = 'none';
+                        }
+                        
+                        // Display limited models (max 5)
+                        displayDraftModels(sortedModels.slice(0, 5));
+                        resolve(data.models);
+                    } else {
+                        console.log('[Load Draft Models] No draft models found');
+                        container.innerHTML = '';
+                        
+                        // Handle the no models message
+                        if (noModelsMessage) {
+                            noModelsMessage.style.display = 'block';
+                            container.appendChild(noModelsMessage);
+                        } else {
+                            // Create a new message if the element doesn't exist
+                            const newMessage = document.createElement('div');
+                            newMessage.className = 'text-center text-muted py-2';
+                            newMessage.id = 'no-drafts-message';
+                            newMessage.innerHTML = `
+                                <i class="bi bi-inbox" style="font-size: 1.2rem;"></i>
+                                <p class="mt-1 small">No models in draft area</p>
+                            `;
+                            container.appendChild(newMessage);
+                        }
+                        
+                        // Update the count display
+                        const draftCount = document.getElementById('draft-count');
+                        if (draftCount) {
+                            draftCount.textContent = '0';
+                        }
+                        
+                        // Hide the view all button if it exists
+                        if (viewAllBtn) {
+                            viewAllBtn.style.display = 'none';
+                        }
+                        resolve([]);
+                    }
+                } catch (error) {
+                    console.error('[Load Draft Models] Error:', error);
+                    // Don't show toast here, as it might be called during deletion process
+                    // and would create confusing UX
+                    logActivity('Error loading draft models: ' + error.message, 'danger');
+                    reject(error);
                 }
-            } catch (error) {
-                console.error('Error loading draft models:', error);
-                showToast('Failed to load draft models', 'danger');
-            }
+            });
         }
         
         // Helper function to display draft models
         function displayDraftModels(models) {
+            console.log('[Display Models] Starting to display models, count:', models.length);
             const container = document.getElementById('draft-models-container');
             container.innerHTML = '';
             
+            // Process models to add model directory path with extensive logging
+            models.forEach(model => {
+                console.log('[Path Processing] Processing model:', model.filename || model.name || 'unnamed model');
+                console.log('[Path Processing] Full model object:', model);
+                
+                // Ensure we have a valid model path
+                if (!model.path) {
+                    console.error('[Path Processing] Model has no path:', model);
+                    model.modelDirPath = null;
+                    model.pathError = 'No path available';
+                    return;
+                }
+                
+                console.log('[Path Processing] Original path:', model.path);
+                
+                try {
+                    // For model paths like /path/to/publisher/model/file.gguf
+                    // We want to get /path/to/publisher/model
+                    const pathParts = model.path.split('/');
+                    console.log('[Path Processing] Path parts:', pathParts);
+                    
+                    // Remove the filename
+                    const filename = pathParts.pop();
+                    console.log('[Path Processing] Removed filename:', filename);
+                    
+                    // Get the model directory path
+                    model.modelDirPath = pathParts.join('/');
+                    console.log('[Path Processing] Calculated directory path:', model.modelDirPath);
+                    
+                    // Validate the calculated path
+                    if (!model.modelDirPath) {
+                        console.warn('[Path Processing] Empty directory path calculated, using original path');
+                        model.modelDirPath = model.path;
+                        model.pathWarning = 'Using original path as fallback';
+                    }
+                    
+                    // Verify the directory path exists by checking if it has publisher and model
+                    if (model.publisher && model.model) {
+                        // Double check that the path matches the expected structure
+                        const expectedDirPath = model.path.includes(`${model.publisher}/${model.model}`) ? 
+                            model.modelDirPath : null;
+                            
+                        if (!expectedDirPath) {
+                            console.warn('[Path Processing] Directory path does not match publisher/model structure');
+                            // Try to reconstruct the path using publisher and model
+                            const draftArea = model.path.split(model.publisher)[0];
+                            model.modelDirPath = `${draftArea}${model.publisher}/${model.model}`;
+                            console.log('[Path Processing] Reconstructed path from publisher/model:', model.modelDirPath);
+                        }
+                    }
+                } catch (error) {
+                    console.error('[Path Processing] Error calculating directory path:', error);
+                    model.modelDirPath = model.path; // Fallback to original path
+                    model.pathError = `Path calculation error: ${error.message}`;
+                }
+            });
+            
             models.forEach(model => {
                 const modelItem = document.createElement('div');
-                modelItem.className = 'list-group-item list-group-item-action draft-model-item p-2';
+                modelItem.className = 'list-group-item draft-model-item p-2';
                 
                 // Extract just the filename from the path
                 const filename = model.filename || model.name;
                 
-                // Create model name and size display
+                // Create model info display
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'd-flex justify-content-between align-items-center';
+                
+                // Create model name with publisher/model structure
                 const nameDiv = document.createElement('div');
-                nameDiv.className = 'd-flex justify-content-between align-items-center';
+                nameDiv.className = 'd-flex flex-column';
                 
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'fw-bold';
                 nameSpan.textContent = filename;
                 nameSpan.title = model.path; // Show full path on hover
                 
+                // Add publisher/model info if available
+                if (model.publisher && model.model) {
+                    const locationSpan = document.createElement('small');
+                    locationSpan.className = 'text-muted';
+                    locationSpan.textContent = `${model.publisher}/${model.model}`;
+                    nameDiv.appendChild(nameSpan);
+                    nameDiv.appendChild(locationSpan);
+                } else {
+                    nameDiv.appendChild(nameSpan);
+                }
+                
                 const sizeSpan = document.createElement('span');
                 sizeSpan.className = 'badge bg-secondary';
                 sizeSpan.textContent = formatBytes(model.size);
                 
-                nameDiv.appendChild(nameSpan);
-                nameDiv.appendChild(sizeSpan);
-                modelItem.appendChild(nameDiv);
+                infoDiv.appendChild(nameDiv);
+                infoDiv.appendChild(sizeSpan);
+                modelItem.appendChild(infoDiv);
                 
                 // Add action buttons
                 const actionsDiv = document.createElement('div');
@@ -1232,13 +1353,61 @@
                 const moveButton = document.createElement('button');
                 moveButton.className = 'btn btn-sm btn-primary';
                 moveButton.innerHTML = '<i class="bi bi-box-arrow-right"></i> Move';
-                moveButton.onclick = () => moveToLibrary(filename);
+                moveButton.onclick = () => moveToLibrary(model.path);
                 
                 // Cancel button
                 const cancelButton = document.createElement('button');
                 cancelButton.className = 'btn btn-sm btn-outline-danger';
                 cancelButton.innerHTML = '<i class="bi bi-x-circle"></i> Cancel';
-                cancelButton.onclick = () => deleteDraftModel(filename);
+                cancelButton.id = `cancel-btn-${model.filename?.replace(/\./g, '-') || Math.random().toString(36).substring(7)}`;
+                
+                // Use the model directory path we calculated earlier
+                console.log('[Cancel Button] Model file path:', model.path);
+                console.log('[Cancel Button] Model directory path for deletion:', model.modelDirPath);
+                
+                // Check if we have a valid model directory path
+                if (model.modelDirPath) {
+                    // Store the path in a data attribute for easier debugging
+                    cancelButton.setAttribute('data-model-path', model.modelDirPath);
+                    
+                    // Add the click event handler
+                    cancelButton.addEventListener('click', function(e) {
+                        e.preventDefault(); // Prevent default behavior
+                        e.stopPropagation(); // Prevent event bubbling
+                        
+                        const modelPath = this.getAttribute('data-model-path');
+                        console.log('[Cancel Button] Button clicked with ID:', this.id);
+                        console.log('[Cancel Button] Model name:', model.filename || model.name || 'unnamed model');
+                        console.log('[Cancel Button] Using directory path from attribute:', modelPath);
+                        
+                        // Call the delete function with the path
+                        if (modelPath) {
+                            console.log('[Cancel Button] Calling deleteDraftModel with path:', modelPath);
+                            deleteDraftModel(modelPath);
+                        } else {
+                            console.error('[Cancel Button] No path found in data attribute');
+                            showToast('Error: No path information available for deletion', 'danger');
+                        }
+                    });
+                    
+                    // Add a tooltip for better UX
+                    cancelButton.title = `Delete ${model.filename || 'this model'} from draft area`;
+                } else {
+                    console.error('[Cancel Button] No valid directory path for model:', model);
+                    cancelButton.disabled = true;
+                    cancelButton.title = 'Cannot delete - path information missing';
+                    cancelButton.className = 'btn btn-sm btn-outline-secondary';
+                }
+                
+                // Add warning indicator if there were path calculation issues
+                if (model.pathWarning || model.pathError) {
+                    console.warn('[Cancel Button] Path issues detected:', model.pathWarning || model.pathError);
+                    const warningIcon = document.createElement('span');
+                    warningIcon.className = 'ms-1 text-warning';
+                    warningIcon.innerHTML = '<i class="bi bi-exclamation-triangle"></i>';
+                    warningIcon.title = model.pathError || model.pathWarning;
+                    cancelButton.appendChild(warningIcon);
+                }
                 
                 actionsDiv.appendChild(moveButton);
                 actionsDiv.appendChild(cancelButton);
@@ -1249,15 +1418,16 @@
         }
         
         // Move a model from draft area to library
-        async function moveToLibrary(filename) {
+        async function moveToLibrary(filepath) {
             try {
+                const filename = filepath.split('/').pop();
                 logActivity(`Moving model ${filename} to library...`, 'info');
                 const response = await fetch('/api/huggingface/move-to-library', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ filename })
+                    body: JSON.stringify({ filepath })
                 });
                 
                 const result = await response.json();
@@ -1280,36 +1450,162 @@
         }
         
         // Delete a model from draft area without adding to library
-        async function deleteDraftModel(filename) {
+        async function deleteDraftModel(filepath) {
+            console.log('[Delete Model] Function called with filepath:', filepath);
+            console.log('[Delete Model] Function caller:', new Error().stack);
+            
+            // Basic validation
+            if (!filepath) {
+                console.error('[Delete Model] ERROR: No filepath provided for deletion');
+                logActivity('Error: No filepath provided for deletion', 'danger');
+                showToast('Error: No filepath provided for deletion', 'danger');
+                return;
+            }
+            
+            // Log the filepath type and check if it's a string
+            console.log('[Delete Model] Filepath type:', typeof filepath);
+            if (typeof filepath !== 'string') {
+                console.error('[Delete Model] ERROR: Filepath is not a string:', filepath);
+                logActivity('Error: Invalid filepath type', 'danger');
+                showToast('Error: Invalid filepath type', 'danger');
+                return;
+            }
+            
             try {
-                if (!confirm(`Are you sure you want to delete ${filename} from the draft area?`)) {
+                // Extract directory name for better display
+                let dirName = 'unknown';
+                try {
+                    dirName = filepath.split('/').pop();
+                    console.log('[Delete Model] Extracted directory name:', dirName);
+                } catch (nameError) {
+                    console.error('[Delete Model] Error extracting directory name:', nameError);
+                    dirName = filepath; // Fallback to using the full path
+                }
+                
+                // Confirm deletion with user
+                console.log('[Delete Model] Requesting user confirmation for:', dirName);
+                if (!confirm(`Are you sure you want to delete the model '${dirName}' from the draft area?`)) {
+                    console.log('[Delete Model] User cancelled deletion of', dirName);
                     return;
                 }
                 
-                logActivity(`Deleting draft model ${filename}...`, 'info');
-                const response = await fetch('/api/huggingface/delete-draft', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ filename })
-                });
+                // Log the action
+                console.log('[Delete Model] User confirmed deletion of model directory:', filepath);
+                logActivity(`Deleting draft model ${dirName}...`, 'info');
                 
-                const result = await response.json();
+                // Prepare the request data
+                const requestData = { filepath: filepath };
+                console.log('[Delete Model] Delete request payload:', requestData);
+                console.log('[Delete Model] Delete request payload (stringified):', JSON.stringify(requestData));
                 
-                if (response.ok && result.success) {
-                    logActivity(`Model ${filename} deleted from draft area`, 'success');
-                    showToast(`Model ${filename} deleted successfully`, 'success');
-                    // Reload draft models
-                    loadDraftModels();
+                // Send the delete request
+                console.log('[Delete Model] Sending API request to /api/huggingface/delete-draft');
+                let response;
+                try {
+                    // Create the request body
+                    const requestBody = JSON.stringify(requestData);
+                    console.log('[Delete Model] Request body (raw):', requestBody);
+                    
+                    // Send the request
+                    response = await fetch('/api/huggingface/delete-draft', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: requestBody
+                    });
+                    
+                    console.log('[Delete Model] API response received:');
+                    console.log('[Delete Model] Status:', response.status);
+                    console.log('[Delete Model] Status text:', response.statusText);
+                    console.log('[Delete Model] Headers:', [...response.headers.entries()]);
+                } catch (fetchError) {
+                    console.error('[Delete Model] Network error during API call:', fetchError);
+                    console.error('[Delete Model] Error stack:', fetchError.stack);
+                    logActivity(`Network error: ${fetchError.message}`, 'danger');
+                    showToast(`Network error: ${fetchError.message}`, 'danger');
+                    return;
+                }
+                
+                // Handle non-OK responses
+                if (!response.ok) {
+                    console.error(`[Delete Model] Server returned error status: ${response.status}`);
+                    let errorMessage = `Server error: ${response.status} - ${response.statusText}`;
+                    
+                    try {
+                        // Try to parse error as JSON first
+                        const errorData = await response.json().catch(() => null);
+                        if (errorData && errorData.error) {
+                            console.error('[Delete Model] Server error details:', errorData.error);
+                            errorMessage = errorData.error;
+                        } else {
+                            // Fall back to text if not JSON
+                            const errorText = await response.text().catch(() => 'Unknown error');
+                            console.error('[Delete Model] Server error text:', errorText);
+                            errorMessage = errorText;
+                        }
+                    } catch (parseError) {
+                        console.error('[Delete Model] Error parsing error response:', parseError);
+                    }
+                    
+                    logActivity(`Server error: ${errorMessage}`, 'danger');
+                    showToast(`Failed to delete model: ${errorMessage}`, 'danger');
+                    return;
+                }
+                
+                // Parse the response
+                let result;
+                try {
+                    result = await response.json();
+                    console.log('[Delete Model] Parsed API response:', result);
+                } catch (jsonError) {
+                    console.error('[Delete Model] Error parsing JSON response:', jsonError);
+                    logActivity('Error: Could not parse server response', 'danger');
+                    showToast('Error: Could not parse server response', 'danger');
+                    return;
+                }
+                
+                // Handle the result
+                if (result.success) {
+                    // Success case
+                    console.log('[Delete Model] Successfully deleted model:', dirName);
+                    logActivity(`Model ${dirName} deleted from draft area`, 'success');
+                    showToast(`Model ${dirName} deleted successfully`, 'success');
+                    
+                    // Reload the draft models list with a longer delay and better error handling
+                    console.log('[Delete Model] Scheduling reload of draft models list');
+                    setTimeout(() => {
+                        console.log('[Delete Model] Executing delayed reload of draft models');
+                        // Use a try-catch block to handle any errors during reload
+                        try {
+                            loadDraftModels()
+                                .catch(reloadError => {
+                                    console.error('[Delete Model] Error during delayed reload:', reloadError);
+                                    // If reload fails, try again after another delay
+                                    setTimeout(() => {
+                                        console.log('[Delete Model] Attempting final reload of draft models');
+                                        loadDraftModels().catch(finalError => {
+                                            console.error('[Delete Model] Final reload attempt failed:', finalError);
+                                        });
+                                    }, 1000);
+                                });
+                        } catch (reloadError) {
+                            console.error('[Delete Model] Exception during reload scheduling:', reloadError);
+                        }
+                    }, 1000); // Longer delay to ensure server state is fully updated
                 } else {
+                    // API returned success: false
+                    console.error('[Delete Model] API reported failure:', result.error);
                     logActivity(`Error: ${result.error || 'Failed to delete model'}`, 'danger');
                     showToast(`Error: ${result.error || 'Failed to delete model'}`, 'danger');
                 }
             } catch (error) {
-                console.error('Error deleting draft model:', error);
-                logActivity('Failed to delete draft model', 'danger');
-                showToast('Failed to delete draft model', 'danger');
+                // Handle any exceptions
+                console.error('[Delete Model] Unhandled exception during model deletion:', error);
+                console.error('[Delete Model] Error stack:', error.stack);
+                logActivity(`Failed to delete draft model: ${error.message}`, 'danger');
+                showToast(`Failed to delete draft model: ${error.message}`, 'danger');
             }
         }
 
