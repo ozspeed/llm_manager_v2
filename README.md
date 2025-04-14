@@ -1,19 +1,27 @@
-# LLM Model Manager (MVP Refactored)
+# LLM Model Manager
 
-A web application for managing local LLM models across different frameworks. This tool helps you organize and track your local language models. The MVP Refactored version builds upon the stable foundation of Version 1.0, adding improved shard detection for complex naming patterns and enhanced system resource monitoring, all within a modular architecture for better maintainability and extensibility.
+A comprehensive web application for managing local LLM models across different frameworks. This tool helps you organize, download, and track your local language models. The application provides a unified interface for managing models from various sources including local files, Hugging Face, and Ollama.
 
 ## Features
 
+### Core Features
 - **Model Management**: Add, remove, and track local LLM models
 - **Auto-Detection**: Automatically detect model frameworks based on file extensions
 - **Library Scanning**: Scan directories to automatically add models
 - **Resource Monitoring**: Real-time tracking of memory, CPU, and disk usage with improved UI display
 - **Framework Support**: Compatible with llama.cpp, Transformers, PyTorch, ONNX, Ollama, and others
-- **Advanced Sharded Model Support**: Enhanced detection and grouping of sharded model files with support for multiple naming conventions (e.g., `-00001-of-00002`, `-1-of-2`, `_0001_of_0003`, `.0001.of.0003`)
+- **Advanced Sharded Model Support**: Enhanced detection and grouping of sharded model files with support for multiple naming conventions
 - **Database Management**: Reset database functionality for fresh starts
 - **Error Handling**: Enhanced error handling and user feedback
 - **Responsive UI**: Defensive programming to prevent UI issues
 - **Modular Architecture**: Refactored codebase with clear separation of concerns
+
+### Hugging Face Integration
+- **Model Search**: Search for models on Hugging Face with filtering options
+- **Popular Models**: Browse trending and popular models
+- **Accurate File Sizes**: Display actual file sizes from the Hugging Face API
+- **Draft Download Area**: Download models to a staging area before adding to your library
+- **Model Management**: Move models from draft area to library with proper organization
 
 ## Setup
 
@@ -52,7 +60,20 @@ The application automatically detects the following model formats:
 
 ## Changelog
 
-### MVP Refactored (v1.0-mvp-refactored) - March 4, 2025
+### v1.1.0 - April 14, 2025
+
+- **Hugging Face Integration**: Added comprehensive integration with Hugging Face Hub
+  - Search for models with filtering options
+  - Browse popular and trending models
+  - Download models to a draft area
+  - Move models to library with proper organization
+  - Accurate file size reporting from the Hugging Face API
+- **Draft Download Area**: Added a staging area for downloaded models
+- **Code Organization**: Improved code structure and documentation
+- **Error Handling**: Enhanced error handling throughout the application
+- **UI Improvements**: Better user experience with clear feedback messages
+
+### v1.0.1 (MVP Refactored) - March 4, 2025
 
 - **Enhanced Shard Detection**: Improved regex patterns to detect various shard naming conventions
 - **System Resources UI**: Fixed and enhanced the system resources display in the UI
@@ -60,7 +81,7 @@ The application automatically detects the following model formats:
 - **Logging Improvements**: Added comprehensive debug logging for better troubleshooting
 - **Testing**: Added test scripts for shard detection and directory access
 
-### MVP 1.0 (v1.0.0) - Initial Release
+### v1.0.0 (Initial Release)
 
 - Basic model management functionality
 - Initial framework detection
@@ -110,18 +131,51 @@ To use this feature:
 
 ## Project Structure
 
-The application has been refactored into a modular structure for better maintainability:
+The application has been organized into a modular structure for better maintainability:
 
 - `app.py`: Main Flask application with routes
-- `config.py`: Central configuration management
 - `models/`
+  - `config.py`: Central configuration management
   - `database.py`: Database operations
   - `detection.py`: Model file detection and scanning
   - `ollama.py`: Ollama-specific model management
+  - `huggingface.py`: Hugging Face integration and API interactions
+  - `search_history.py`: Search history tracking and caching
 - `utils/`
   - `system.py`: System information and resource monitoring
+  - `file_browser.py`: File system browsing utilities
+  - `model_scanner.py`: Advanced model scanning functionality
 - `static/`: Frontend assets
 - `templates/`: HTML templates
+  - `index.html`: Main application interface
+  - `huggingface.html`: Hugging Face integration interface
+  - `settings.html`: Application settings interface
+
+## Hugging Face Integration
+
+The application now includes comprehensive integration with the Hugging Face Hub, allowing you to:
+
+- **Search for Models**: Find models using keywords and filters
+- **Browse Popular Models**: Discover trending and popular models
+- **View Model Details**: See model descriptions, tags, and accurate file sizes
+- **Download Models**: Download models to a draft area before adding to your library
+- **Manage Downloads**: Move models from the draft area to your library with proper organization
+
+To use this feature:
+
+1. Navigate to the Hugging Face tab in the application
+2. Search for models or browse popular models
+3. Select a model to view details and download options
+4. Download the model to the draft area
+5. Move the model to your library when ready
+
+## Draft Download Area
+
+The application includes a "Draft Download Area" feature that serves as a staging area for downloaded models:
+
+- Models downloaded from Hugging Face are first saved to the draft area
+- You can review models before moving them to the main library
+- The draft area can be configured in the settings
 
 ## Roadmap for Future Versions
 
@@ -129,10 +183,11 @@ The application has been refactored into a modular structure for better maintain
 - Advanced filtering and search
 - Backup/restore functionality
 - User authentication
-- Enhanced model metadata extraction
+- Enhanced metadata extraction
 - Export/import functionality
 - Ollama model management (pull, create, delete)
 - Additional model format support
+- Batch operations for model management
 
 ## License
 

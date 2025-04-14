@@ -4,11 +4,7 @@ This module serves as the entry point for the application and defines all the ro
 It imports functionality from other modules to keep the code modular and maintainable.
 """
 
-from flask import Flask, render_template, jsonify, request, send_from_directory
-from flask_cors import CORS
-
-# Import configuration
-from models import config
+# Standard library imports
 import os
 import shutil
 import glob
@@ -16,13 +12,32 @@ import re
 import sqlite3
 import json
 import datetime
+import traceback
+import argparse
 
-# Import modules
+# Third-party imports
+from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask_cors import CORS
+
+# Application imports - Configuration
+from models import config
+
+# Application imports - Database
 from models.database import init_db, get_all_models, add_model, delete_model, reset_database
+
+# Application imports - Model management
 from models.detection import scan_directory, is_shard_file, extract_base_name
 from models.ollama import scan_ollama_models
-from models.huggingface import search_models, download_model, move_model_to_library, list_draft_models, get_model_files
+from models.huggingface import (
+    search_models, 
+    download_model, 
+    move_model_to_library, 
+    list_draft_models, 
+    get_model_files,
+    delete_draft_model
+)
 
+# Application imports - Utilities
 from utils.system import get_system_info
 from utils.file_browser import browse_directories
 from utils.model_scanner import scan_for_models
@@ -34,30 +49,80 @@ CORS(app)
 # Initialize database
 init_db()
 
-# Routes
+# =============================================================================
+# PAGE ROUTES - Main application pages
+# =============================================================================
+
 @app.route('/')
 def index():
+    """Render the main index page."""
     return render_template('index.html')
 
 @app.route('/huggingface')
 def huggingface():
-    """Render the Hugging Face page."""
+    """Render the Hugging Face integration page."""
     return render_template('huggingface.html')
 
 @app.route('/settings')
 def settings():
+    """Render the application settings page."""
     return render_template('settings.html')
+
+# =============================================================================
+# DEVELOPMENT & TESTING ROUTES - Only used during development
+# =============================================================================
 
 @app.route('/test')
 def test():
+    """Render the test page for development."""
     return render_template('index_new.html')
+
+@app.route('/test-cancel')
+def test_cancel():
+    """Test page for cancel button functionality."""
+    return render_template('test_cancel.html')
+
+@app.route('/debug-cancel')
+def debug_cancel():
+    """Debug page for cancel button functionality."""
+    return render_template('debug_cancel.html')
+
+@app.route('/cancel-debug')
+def cancel_debug():
+    """Comprehensive debug tool for cancel button functionality."""
+    return render_template('cancel_debug.html')
+
+@app.route('/api-test')
+def api_test():
+    """Simple API test tool for testing endpoints directly."""
+    return render_template('api_test.html')
+
+# =============================================================================
+# API ROUTES - MODELS - Core model management endpoints
+# =============================================================================
 
 @app.route('/api/models', methods=['GET'])
 def get_models():
+    """Get all models from the database.
+    
+    Returns:
+        JSON response with all models in the database
+    """
     return get_all_models()
 
 @app.route('/api/models', methods=['POST'])
 def create_model():
+    """Create a new model entry in the database.
+    
+    JSON parameters:
+    - name: Model name
+    - framework: Model framework
+    - path: Path to the model file
+    - config: Optional configuration data
+    
+    Returns:
+        JSON response with the created model or error
+    """
     data = request.json
     if not data:
         return jsonify({"error": "No data provided"}), 400
@@ -74,12 +139,32 @@ def create_model():
 
 @app.route('/api/models/<int:model_id>', methods=['DELETE'])
 def remove_model(model_id):
+    """Remove a model from the database.
+    
+    Args:
+        model_id: ID of the model to remove
+        
+    Query parameters:
+    - delete_files: Whether to delete the model files (default: false)
+    
+    Returns:
+        JSON response with the result of the operation
+    """
     # Check if we should delete the files as well
     delete_files = request.args.get('delete_files', 'false').lower() == 'true'
     return delete_model(model_id, delete_files)
 
 @app.route('/api/scan', methods=['GET'])
 def scan_models():
+    """Scan for models in the specified directory and optionally include Ollama models.
+    
+    Query parameters:
+    - path: Path to scan for models (default: model library path from config)
+    - include_ollama: Whether to include Ollama models (default: based on config)
+    
+    Returns:
+        JSON response with the scan results
+    """
     path = request.args.get('path', config.get_model_library_path())
     include_ollama = request.args.get('include_ollama', str(config.get_ollama_enabled())).lower() == 'true'
     
@@ -1047,6 +1132,10 @@ def hf_search():
                 "error": "Search query is required"
             }), 400
         
+        # Save the search query to history
+        from models.search_history import add_search_query
+        add_search_query(query, model_type)
+        
         results = search_models(query, model_type, limit)
         return jsonify({
             "success": True,
@@ -1054,6 +1143,58 @@ def hf_search():
             "count": len(results)
         })
     except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/huggingface/popular-models', methods=['GET'])
+def hf_popular_models():
+    """Get trending models from Hugging Face.
+    
+    Query parameters:
+    - model_type: Type of model to filter by (optional)
+    - limit: Maximum number of results to return (optional, default: 12)
+    """
+    try:
+        model_type = request.args.get('model_type', None)
+        limit = int(request.args.get('limit', 12))
+        
+        from models.huggingface import get_popular_models
+        results = get_popular_models(limit, model_type)
+        
+        return jsonify({
+            "success": True,
+            "results": results,
+            "count": len(results)
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting popular models: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/huggingface/recent-searches', methods=['GET'])
+def hf_recent_searches():
+    """Get recent search queries.
+    
+    Query parameters:
+    - limit: Maximum number of searches to return (optional, default: 5)
+    """
+    try:
+        limit = int(request.args.get('limit', 5))
+        
+        from models.search_history import get_recent_searches
+        results = get_recent_searches(limit)
+        
+        return jsonify({
+            "success": True,
+            "searches": results,
+            "count": len(results)
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting recent searches: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e)
@@ -1124,19 +1265,19 @@ def hf_move_to_library():
     """Move a model from the draft download area to the model library.
     
     JSON parameters:
-    - filename: Name of the file to move
+    - filepath: Full path to the file to move
     """
     try:
         data = request.json
-        filename = data.get('filename')
+        filepath = data.get('filepath')
         
-        if not filename:
+        if not filepath:
             return jsonify({
                 "success": False,
-                "error": "Filename is required"
+                "error": "File path is required"
             }), 400
         
-        result = move_model_to_library(filename)
+        result = move_model_to_library(filepath)
         if not result["success"]:
             return jsonify(result), 400
         
@@ -1152,34 +1293,133 @@ def hf_delete_draft():
     """Delete a model from the draft download area without adding it to the library.
     
     JSON parameters:
-    - filename: Name of the file to delete
+    - filepath: Full path to the file or directory to delete
     """
+    app.logger.info("[HF_DELETE_DRAFT] API endpoint called")
+    
     try:
-        data = request.json
-        filename = data.get('filename')
+        # Log the raw request data for debugging
+        app.logger.info(f"[HF_DELETE_DRAFT] Received delete request with data: {request.data}")
         
-        if not filename:
+        # Check if request has JSON content
+        if not request.is_json:
+            app.logger.error("[HF_DELETE_DRAFT] Request does not contain JSON data")
             return jsonify({
                 "success": False,
-                "error": "Filename is required"
+                "error": "Request must be JSON"
+            }), 400
+            
+        # Parse the JSON data
+        try:
+            data = request.json
+            app.logger.info(f"[HF_DELETE_DRAFT] Parsed JSON data: {data}")
+        except Exception as e:
+            app.logger.error(f"[HF_DELETE_DRAFT] Failed to parse JSON data: {str(e)}")
+            return jsonify({
+                "success": False,
+                "error": f"Invalid JSON data: {str(e)}"
             }), 400
         
+        # Extract the filepath
+        filepath = data.get('filepath')
+        app.logger.info(f"[HF_DELETE_DRAFT] Extracted filepath: {filepath}")
+        
+        # Validate filepath
+        if not filepath:
+            app.logger.error("[HF_DELETE_DRAFT] No filepath provided in delete request")
+            return jsonify({
+                "success": False,
+                "error": "File path is required"
+            }), 400
+            
+        # Validate filepath is a string
+        if not isinstance(filepath, str):
+            app.logger.error(f"[HF_DELETE_DRAFT] Invalid filepath type: {type(filepath)}")
+            return jsonify({
+                "success": False,
+                "error": f"Invalid filepath type: {type(filepath)}"
+            }), 400
+        
+        # Check if path exists
+        if not os.path.exists(filepath):
+            app.logger.error(f"[HF_DELETE_DRAFT] Path not found: {filepath}")
+            return jsonify({
+                "success": False,
+                "error": f"Path not found: {filepath}"
+            }), 404
+            
+        # Check if path is within draft area
+        from models.config import get_draft_download_area
+        draft_area = get_draft_download_area()
+        app.logger.info(f"[HF_DELETE_DRAFT] Draft area: {draft_area}")
+        
+        if not draft_area:
+            app.logger.error("[HF_DELETE_DRAFT] Draft download area not configured")
+            return jsonify({
+                "success": False,
+                "error": "Draft download area not configured"
+            }), 500
+            
+        if not filepath.startswith(draft_area):
+            app.logger.error(f"[HF_DELETE_DRAFT] Security check failed - Path is not within draft area")
+            app.logger.error(f"[HF_DELETE_DRAFT] Path: {filepath}")
+            app.logger.error(f"[HF_DELETE_DRAFT] Draft area: {draft_area}")
+            return jsonify({
+                "success": False,
+                "error": "Security error: Path is not within draft area"
+            }), 400
+        
+        # Import and call the delete function
         from models.huggingface import delete_draft_model
-        result = delete_draft_model(filename)
-        if not result["success"]:
+        app.logger.info(f"[HF_DELETE_DRAFT] Calling delete_draft_model for: {filepath}")
+        
+        # Get file/directory info for better logging
+        file_type = "directory" if os.path.isdir(filepath) else "file" if os.path.isfile(filepath) else "unknown"
+        file_name = os.path.basename(filepath)
+        app.logger.info(f"[HF_DELETE_DRAFT] Deleting {file_type} '{file_name}'")
+        
+        # Call the delete function
+        try:
+            result = delete_draft_model(filepath)
+            app.logger.info(f"[HF_DELETE_DRAFT] Delete operation result: {result}")
+        except Exception as func_error:
+            app.logger.exception(f"[HF_DELETE_DRAFT] Exception in delete_draft_model: {str(func_error)}")
+            return jsonify({
+                "success": False,
+                "error": f"Internal error during deletion: {str(func_error)}"
+            }), 500
+        
+        # Check result
+        if not result.get("success"):
+            error_msg = result.get('error', 'Unknown error')
+            app.logger.error(f"[HF_DELETE_DRAFT] Delete operation failed: {error_msg}")
             return jsonify(result), 400
         
+        # Log success
+        app.logger.info(f"[HF_DELETE_DRAFT] Successfully deleted {file_type} '{file_name}'")
         return jsonify(result)
     except Exception as e:
+        # Log the full exception with traceback
+        app.logger.exception(f"[HF_DELETE_DRAFT] Unhandled exception: {str(e)}")
+        import traceback
+        app.logger.error(f"[HF_DELETE_DRAFT] Exception traceback: {traceback.format_exc()}")
+        
         return jsonify({
             "success": False,
-            "error": str(e)
+            "error": f"Server error: {str(e)}",
+            "exception_type": type(e).__name__
         }), 500
 
-if __name__ == '__main__':
-    import argparse
+# =============================================================================
+# APPLICATION ENTRY POINT
+# =============================================================================
+
+def parse_arguments():
+    """Parse command line arguments for the application.
     
-    # Parse command line arguments
+    Returns:
+        Parsed arguments object
+    """
     parser = argparse.ArgumentParser(description='LLM Model Manager')
     parser.add_argument('--port', type=int, default=config.get_port(), 
                         help=f'Port to run the server on (default: {config.get_port()})')
@@ -1188,9 +1428,15 @@ if __name__ == '__main__':
     parser.add_argument('--model-library', type=str, default=config.get_model_library_path(),
                         help=f'Path to model library (default: {config.get_model_library_path()})')
     
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def update_config_from_args(args):
+    """Update configuration based on command line arguments.
     
-    # Update config with command line arguments if they differ from defaults
+    Args:
+        args: Parsed command line arguments
+    """
     if args.port != config.get_port():
         config.set_setting('app.port', args.port)
     
@@ -1199,6 +1445,14 @@ if __name__ == '__main__':
         
     if args.model_library != config.get_model_library_path():
         config.set_setting('paths.model_library', args.model_library)
+
+
+if __name__ == '__main__':
+    # Parse command line arguments
+    args = parse_arguments()
+    
+    # Update config with command line arguments
+    update_config_from_args(args)
     
     # Run the application
     app.run(debug=args.debug, port=args.port)

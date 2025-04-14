@@ -1,15 +1,34 @@
 """
 Hugging Face integration for the LLM Model Manager.
-Handles searching, downloading, and managing models from Hugging Face.
+
+This module provides functionality for integrating with the Hugging Face Hub API,
+including searching, downloading, and managing models from Hugging Face.
+
+It handles:
+- Authentication with the Hugging Face API
+- Searching for models with various filters
+- Downloading models to a draft area
+- Moving models from the draft area to the model library
+- Managing the draft download area
+
+The module implements a fallback mechanism with hardcoded popular models
+when the API is not available or not configured.
 """
 
+# Standard library imports
 import os
 import shutil
 import logging
+import traceback
+import datetime
 from pathlib import Path
+
+# Third-party imports
 from huggingface_hub import HfApi, ModelFilter, login
 from huggingface_hub.utils import RepositoryNotFoundError, HfHubHTTPError
+import requests
 
+# Application imports
 from models import config
 from models.database import add_model
 from models.detection import detect_framework
@@ -17,8 +36,20 @@ from models.detection import detect_framework
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# AUTHENTICATION AND INITIALIZATION
+# =============================================================================
+
 def initialize_huggingface():
-    """Initialize the Hugging Face API with the stored token if available."""
+    """Initialize the Hugging Face API with the stored token if available.
+    
+    This function attempts to authenticate with the Hugging Face API using
+    the token stored in the application configuration. It will log appropriate
+    messages based on the outcome of the authentication attempt.
+    
+    Returns:
+        bool: True if authentication was successful, False otherwise
+    """
     if not config.get_huggingface_enabled():
         logger.info("Hugging Face integration is disabled")
         return False
@@ -36,16 +67,32 @@ def initialize_huggingface():
         logger.error(f"Failed to authenticate with Hugging Face API: {str(e)}")
         return False
 
+# =============================================================================
+# MODEL DISCOVERY AND SEARCH
+# =============================================================================
+
 def get_popular_models(limit=12, model_type=None):
     """
     Get trending models from Hugging Face based on recent activity and popularity.
     
+    This function attempts to retrieve popular models using the following strategy:
+    1. First check for cached popular models from search history
+    2. If no cached models or not enough, fetch from Hugging Face API
+    3. If API is not available or configured, fall back to hardcoded popular models
+    
     Args:
-        limit (int, optional): Maximum number of models to return
-        model_type (str, optional): Type of model to filter by
+        limit (int, optional): Maximum number of models to return. Defaults to 12.
+        model_type (str, optional): Type of model to filter by. Defaults to None.
         
     Returns:
-        list: List of trending model information dictionaries
+        list: List of trending model information dictionaries with the following keys:
+            - id: Model ID (e.g., 'TheBloke/Llama-2-7B-GGUF')
+            - name: Display name of the model
+            - downloads: Number of downloads (if available)
+            - likes: Number of likes (if available)
+            - last_modified: Last modified date (if available)
+            - tags: List of tags associated with the model
+            - description: Short description of the model
     """
     try:
         # First try to get cached popular models from search history
@@ -414,17 +461,30 @@ def search_hardcoded_models(query, model_type=None, limit=50):
     # Return limited results
     return filtered_models[:limit]
 
+# =============================================================================
+# MODEL DOWNLOAD AND MANAGEMENT
+# =============================================================================
+
 def download_model(model_id, filename=None):
     """
     Download a model from Hugging Face to the draft download area.
-    Follows the library model format: publisher directory -> model directory -> files
+    
+    This function downloads a model from Hugging Face to the draft download area,
+    following the library model format: publisher directory -> model directory -> files.
+    If a specific filename is provided, only that file is downloaded. Otherwise,
+    all files in the model repository are downloaded.
     
     Args:
         model_id (str): Hugging Face model ID (e.g., 'TheBloke/Llama-2-7B-GGUF')
-        filename (str, optional): Specific filename to download, if None downloads all files
+        filename (str, optional): Specific filename to download. If None, downloads all files.
         
     Returns:
-        dict: Status information about the download
+        dict: Status information about the download with the following keys:
+            - success (bool): Whether the download was successful
+            - message (str): A message describing the result
+            - error (str, optional): Error message if download failed
+            - downloaded_files (list, optional): List of downloaded files if successful
+            - target_dir (str, optional): Directory where files were downloaded
     """
     if not initialize_huggingface():
         return {"success": False, "error": "Hugging Face API not initialized"}
@@ -512,11 +572,24 @@ def download_model(model_id, filename=None):
 def get_model_files(model_id):
     """Get a list of files for a specific model with their actual sizes.
     
+    This function retrieves a list of files for a specific model from the Hugging Face API,
+    including their actual sizes. It makes a direct API call to the Hugging Face API
+    to get accurate file sizes rather than relying on estimated sizes.
+    
     Args:
-        model_id (str): Hugging Face model ID
+        model_id (str): Hugging Face model ID (e.g., 'TheBloke/Llama-2-7B-GGUF')
         
     Returns:
-        dict: Dictionary with success status and list of files with sizes
+        dict: Dictionary with the following keys:
+            - success (bool): Whether the operation was successful
+            - files (list): List of file information dictionaries with the following keys:
+                - filename (str): Name of the file
+                - size (int): Size of the file in bytes
+                - size_human (str): Human-readable size (e.g., '2.5 GB')
+                - last_modified (str): Last modified date
+                - gguf (bool): Whether the file is a GGUF file
+                - safetensors (bool): Whether the file is a SafeTensors file
+            - error (str, optional): Error message if operation failed
     """
     if not initialize_huggingface():
         return {"success": False, "error": "Hugging Face API not initialized"}
@@ -581,13 +654,22 @@ def get_model_files(model_id):
 def move_model_to_library(filepath):
     """
     Move a model from the draft download area to the model library.
-    The directory structure (publisher/model) is preserved.
+    
+    This function moves a model file from the draft download area to the model library,
+    preserving the directory structure (publisher/model). It creates a unique directory
+    for each model file to avoid conflicts and adds the model to the database.
     
     Args:
         filepath (str): Full path to the file to move
         
     Returns:
-        dict: Status information about the move operation
+        dict: Status information about the move operation with the following keys:
+            - success (bool): Whether the move was successful
+            - message (str): A message describing the result
+            - error (str, optional): Error message if move failed
+            - source_path (str): Original path of the file
+            - target_path (str): New path of the file in the model library
+            - model_name (str): Name of the model as added to the database
     """
     try:
         draft_area = config.get_draft_download_area()
@@ -659,12 +741,32 @@ def move_model_to_library(filepath):
         logger.error(f"Error moving model to library: {str(e)}")
         return {"success": False, "error": str(e)}
 
+# =============================================================================
+# DRAFT AREA MANAGEMENT
+# =============================================================================
+
 def list_draft_models():
     """
     List all models in the draft download area following the publisher/model structure.
     
+    This function scans the draft download area and returns a list of all model files
+    found, organized by publisher and model. It identifies GGUF and SafeTensors files
+    and includes their sizes and last modified dates.
+    
     Returns:
-        list: List of model file information
+        dict: Dictionary with the following keys:
+            - success (bool): Whether the operation was successful
+            - models (list): List of model file information dictionaries with the following keys:
+                - filepath (str): Full path to the file
+                - filename (str): Name of the file
+                - publisher (str): Publisher name
+                - model (str): Model name
+                - size (int): Size of the file in bytes
+                - size_human (str): Human-readable size (e.g., '2.5 GB')
+                - last_modified (str): Last modified date
+                - gguf (bool): Whether the file is a GGUF file
+                - safetensors (bool): Whether the file is a SafeTensors file
+            - error (str, optional): Error message if operation failed
     """
     try:
         draft_area = config.get_draft_download_area()
@@ -705,14 +807,28 @@ def list_draft_models():
 def delete_draft_model(filepath):
     """
     Delete a model from the draft download area.
-    If a file path is provided, delete the file and its parent directories if empty.
-    If a directory path is provided, delete the entire directory structure.
+    
+    This function deletes a model file or directory from the draft download area.
+    If a file path is provided, it deletes the file and its parent directories if they are empty.
+    If a directory path is provided, it deletes the entire directory structure.
+    
+    The function performs several safety checks:
+    1. Verifies that the path exists
+    2. Ensures the path is within the draft download area
+    3. Checks if the path is a file or directory
+    
+    After deletion, it also cleans up empty parent directories.
     
     Args:
         filepath (str): Full path to the file or directory to delete
         
     Returns:
-        dict: Status information about the delete operation
+        dict: Status information about the delete operation with the following keys:
+            - success (bool): Whether the deletion was successful
+            - message (str): A message describing the result
+            - error (str, optional): Error message if deletion failed
+            - deleted_path (str): Path that was deleted
+            - deleted_type (str): Type of the deleted item ('file' or 'directory')
     """
     logger.info(f"[DELETE_DRAFT_MODEL] Function called with filepath: {filepath}")
     

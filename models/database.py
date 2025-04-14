@@ -1,19 +1,55 @@
 """
 Database operations for the LLM Model Manager.
-Handles model storage, retrieval, and management in the SQLite database.
+
+This module provides functionality for interacting with the SQLite database
+that stores information about the models managed by the application.
+
+It handles:
+- Database initialization and schema creation
+- Adding models to the database with metadata
+- Retrieving models with filtering and sorting
+- Deleting models with optional file removal
+- Database reset and maintenance
+
+The database schema includes fields for model name, framework, file path,
+size, last used timestamp, and a JSON configuration field for additional metadata.
 """
 
+# Standard library imports
 import sqlite3
 import json
 import os
+import shutil
 from pathlib import Path
 from datetime import datetime
 import traceback
 
+# Application imports
 from models import config
 
+# =============================================================================
+# DATABASE INITIALIZATION AND SCHEMA MANAGEMENT
+# =============================================================================
+
 def init_db():
-    """Initialize the database and create tables if they don't exist."""
+    """Initialize the database and create tables if they don't exist.
+    
+    This function creates the SQLite database file if it doesn't exist
+    and initializes the schema with the required tables. It creates a
+    'models' table with fields for storing model metadata.
+    
+    The schema includes:
+    - id: Unique identifier for each model
+    - name: Display name of the model
+    - framework: Framework type (e.g., 'gguf', 'safetensors', 'ollama')
+    - path: File path to the model (must be unique)
+    - size_mb: Size of the model in megabytes
+    - last_used: Timestamp of when the model was last used
+    - config: JSON string containing additional configuration data
+    
+    Returns:
+        None
+    """
     conn = sqlite3.connect(config.get_database_path())
     cursor = conn.cursor()
     cursor.execute('''
@@ -30,8 +66,31 @@ def init_db():
     conn.commit()
     conn.close()
 
+# =============================================================================
+# MODEL RETRIEVAL AND QUERYING
+# =============================================================================
+
 def get_all_models():
-    """Get all models from the database."""
+    """Get all models from the database.
+    
+    This function retrieves all models from the database, ordered by name.
+    It parses the JSON config field for each model and returns a list of
+    model dictionaries with all metadata.
+    
+    Returns:
+        tuple: A tuple containing:
+            - list: List of model dictionaries if successful
+            - int: HTTP status code (200 for success, 500 for error)
+            
+    Each model dictionary contains the following keys:
+    - id: Unique identifier for the model
+    - name: Display name of the model
+    - framework: Framework type
+    - path: File path to the model
+    - size_mb: Size of the model in megabytes
+    - last_used: Timestamp of when the model was last used
+    - config: Dictionary containing additional configuration data
+    """
     try:
         conn = sqlite3.connect(config.get_database_path())
         conn.row_factory = sqlite3.Row
@@ -54,8 +113,29 @@ def get_all_models():
     except Exception as e:
         return {"error": str(e)}, 500
 
+# =============================================================================
+# MODEL CREATION AND MANAGEMENT
+# =============================================================================
+
 def add_model(name, framework, path, model_config=None, size_override=None):
-    """Add a model to the database."""
+    """Add a model to the database.
+    
+    This function adds a new model to the database with the provided metadata.
+    It handles different types of models including regular files, virtual paths
+    for Ollama models, and sharded models.
+    
+    Args:
+        name (str): Display name of the model
+        framework (str): Framework type (e.g., 'gguf', 'safetensors', 'ollama')
+        path (str): File path to the model or virtual path for Ollama models
+        model_config (dict or str, optional): Additional configuration data
+        size_override (float, optional): Override for model size in MB
+        
+    Returns:
+        tuple: A tuple containing:
+            - dict: Response with model ID or error message
+            - int: HTTP status code (201 for created, 400/500 for errors)
+    """
     try:
         # Handle virtual paths for Ollama models or sharded models
         is_ollama_path = path.startswith('ollama://')
@@ -149,9 +229,18 @@ def add_model(name, framework, path, model_config=None, size_override=None):
 def delete_model(model_id, delete_files=False):
     """Delete a model from the database by ID.
     
+    This function removes a model from the database and optionally deletes
+    the associated files from the filesystem. It handles both single file models
+    and directory-based models with multiple files.
+    
     Args:
-        model_id: The ID of the model to delete
-        delete_files: If True, also delete the underlying files
+        model_id (int): The ID of the model to delete
+        delete_files (bool, optional): If True, also delete the underlying files
+        
+    Returns:
+        tuple: A tuple containing:
+            - dict: Response with success or error message
+            - int: HTTP status code (200 for success, 404/500 for errors)
     """
     try:
         conn = sqlite3.connect(config.get_database_path())
@@ -211,8 +300,22 @@ def delete_model(model_id, delete_files=False):
     except Exception as e:
         return {"error": str(e)}, 500
 
+# =============================================================================
+# DATABASE MAINTENANCE
+# =============================================================================
+
 def reset_database():
-    """Reset the database by dropping and recreating the models table."""
+    """Reset the database by dropping and recreating the models table.
+    
+    This function completely resets the database by dropping the models table
+    and recreating it with the original schema. This will delete all model
+    entries from the database but will not delete any model files.
+    
+    Returns:
+        tuple: A tuple containing:
+            - dict: Response with success or error message
+            - int: HTTP status code (200 for success, 500 for error)
+    """
     try:
         conn = sqlite3.connect(config.get_database_path())
         cursor = conn.cursor()
