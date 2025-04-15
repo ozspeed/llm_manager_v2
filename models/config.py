@@ -1,7 +1,9 @@
 import os
 import json
 import logging
+import traceback
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,15 @@ DEFAULT_SETTINGS = {
         },
         "huggingface": {
             "enabled": False,
-            "api_token": ""
+            "api_token": "",
+            "search_results_limit": 50,
+            "trending_search": {
+                "query": "",
+                "model_type": "text-generation",
+                "tags": ["gguf"],
+                "sort_by": "last_modified",
+                "sort_direction": -1
+            }
         }
     },
     "tool_repositories": []
@@ -35,8 +45,20 @@ DEFAULT_SETTINGS = {
 
 _settings = None
 
-def load_settings():
-    """Load settings from settings.json file."""
+# =============================================================================
+# SETTINGS MANAGEMENT - Core functions for loading and saving settings
+# =============================================================================
+
+def load_settings() -> None:
+    """Load settings from settings.json file.
+    
+    This function loads application settings from the settings.json file.
+    If the file doesn't exist or is invalid, it creates a new one with default settings.
+    It also ensures that the minimal required structure exists in the settings.
+    
+    Returns:
+        None
+    """
     global _settings, config
     
     try:
@@ -92,16 +114,31 @@ def load_settings():
     # Update the config reference
     _update_config_reference()
 
-def deep_update(target, source):
-    """Recursively update target dict with values from source dict."""
+def deep_update(target: Dict[str, Any], source: Dict[str, Any]) -> None:
+    """Recursively update target dict with values from source dict.
+    
+    Args:
+        target: The target dictionary to update
+        source: The source dictionary with values to apply
+        
+    Returns:
+        None
+    """
     for key, value in source.items():
         if key in target and isinstance(target[key], dict) and isinstance(value, dict):
             deep_update(target[key], value)
         else:
             target[key] = value
 
-def save_settings():
-    """Save current settings to settings.json file."""
+def save_settings() -> bool:
+    """Save current settings to settings.json file.
+    
+    This function saves the current settings to the settings.json file.
+    It creates any necessary parent directories if they don't exist.
+    
+    Returns:
+        bool: True if settings were saved successfully, False otherwise
+    """
     try:
         settings_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'settings.json')
         logger.info(f"Saving settings to: {settings_path}")
@@ -133,8 +170,20 @@ def save_settings():
         import traceback
         logger.error(traceback.format_exc())
 
-def get_setting(key, default=None):
-    """Get a setting value by key using dot notation."""
+# =============================================================================
+# SETTINGS ACCESS - Functions for getting and setting values
+# =============================================================================
+
+def get_setting(key: str, default: Any = None) -> Any:
+    """Get a setting value by key using dot notation.
+    
+    Args:
+        key: The key to look up, using dot notation (e.g., 'app.port')
+        default: The default value to return if the key is not found
+        
+    Returns:
+        Any: The value for the specified key, or the default if not found
+    """
     if _settings is None:
         load_settings()
     
@@ -146,8 +195,18 @@ def get_setting(key, default=None):
     except (KeyError, TypeError):
         return default
 
-def update_settings(settings_dict):
-    """Update multiple settings at once."""
+def update_settings(settings_dict: Dict[str, Any]) -> bool:
+    """Update multiple settings at once.
+    
+    This function updates multiple settings at once by converting a flat dictionary
+    with dot notation keys into a nested structure and then updating the settings.
+    
+    Args:
+        settings_dict: A dictionary with settings to update
+        
+    Returns:
+        bool: True if settings were updated successfully, False otherwise
+    """
     if _settings is None:
         load_settings()
     
@@ -211,8 +270,16 @@ def update_settings(settings_dict):
         logger.error(traceback.format_exc())
         return False
 
-def set_setting(key, value):
-    """Set a setting value by key using dot notation."""
+def set_setting(key: str, value: Any) -> bool:
+    """Set a setting value by key using dot notation.
+    
+    Args:
+        key: The key to set, using dot notation (e.g., 'app.port')
+        value: The value to set
+        
+    Returns:
+        bool: True if the setting was set successfully, False otherwise
+    """
     if _settings is None:
         load_settings()
     
@@ -243,58 +310,140 @@ def set_setting(key, value):
         logger.error(f"Error setting configuration value: {str(e)}")
         return False
 
-# Common getters
-def get_model_library_path():
+# =============================================================================
+# COMMON GETTERS - Convenience functions for accessing specific settings
+# =============================================================================
+
+def get_model_library_path() -> str:
+    """Get the path to the model library.
+    
+    Returns:
+        str: The expanded path to the model library
+    """
     return os.path.expanduser(get_setting('paths.model_library', DEFAULT_SETTINGS['paths']['model_library']))
 
-def get_database_path():
+def get_database_path() -> str:
+    """Get the path to the database file.
+    
+    Returns:
+        str: The path to the database file
+    """
     return get_setting('paths.database', DEFAULT_SETTINGS['paths']['database'])
 
-def get_draft_download_area():
+def get_draft_download_area() -> str:
+    """Get the path to the draft download area.
+    
+    Returns:
+        str: The expanded path to the draft download area
+    """
     return os.path.expanduser(get_setting('paths.draft_download_area', DEFAULT_SETTINGS['paths']['draft_download_area'] or '~/Downloads/LLM_Downloads'))
 
-def get_model_extensions():
+def get_model_extensions() -> List[str]:
+    """Get the list of supported model file extensions.
+    
+    Returns:
+        List[str]: List of supported model file extensions
+    """
     return get_setting('models.extensions', DEFAULT_SETTINGS['models']['extensions'])
 
-def get_port():
+def get_port() -> int:
+    """Get the port number for the application server.
+    
+    Returns:
+        int: The port number
+    """
     return get_setting('app.port', DEFAULT_SETTINGS['app']['port'])
 
-def get_debug_mode():
+def get_debug_mode() -> bool:
+    """Get whether debug mode is enabled.
+    
+    Returns:
+        bool: True if debug mode is enabled, False otherwise
+    """
     return get_setting('app.debug', DEFAULT_SETTINGS['app']['debug'])
 
-def get_ollama_enabled():
+def get_ollama_enabled() -> bool:
+    """Get whether Ollama integration is enabled.
+    
+    Returns:
+        bool: True if Ollama integration is enabled, False otherwise
+    """
     return get_setting('frameworks.ollama.enabled', DEFAULT_SETTINGS['frameworks']['ollama']['enabled'])
 
-def get_ollama_repositories():
+def get_ollama_repositories() -> List[str]:
+    """Get the list of Ollama repositories.
+    
+    Returns:
+        List[str]: List of Ollama repositories
+    """
     return get_setting('frameworks.ollama.repositories', DEFAULT_SETTINGS['frameworks']['ollama']['repositories'])
 
-def get_huggingface_enabled():
+def get_huggingface_enabled() -> bool:
+    """Get whether Hugging Face integration is enabled.
+    
+    Returns:
+        bool: True if Hugging Face integration is enabled, False otherwise
+    """
     return get_setting('frameworks.huggingface.enabled', DEFAULT_SETTINGS['frameworks']['huggingface']['enabled'])
 
-def get_huggingface_api_token():
+def get_huggingface_api_token() -> str:
+    """Get the Hugging Face API token.
+    
+    Returns:
+        str: The Hugging Face API token
+    """
     return get_setting('frameworks.huggingface.api_token', DEFAULT_SETTINGS['frameworks']['huggingface']['api_token'])
 
-def get_app_version():
+def get_app_version() -> str:
+    """Get the application version.
+    
+    Returns:
+        str: The application version
+    """
     return get_setting('app.version', DEFAULT_SETTINGS['app']['version'])
 
-def get_tool_repositories():
+def get_tool_repositories() -> List[Dict[str, Any]]:
+    """Get the list of tool repositories.
+    
+    Returns:
+        List[Dict[str, Any]]: List of tool repositories
+    """
     return get_setting('tool_repositories', DEFAULT_SETTINGS['tool_repositories'])
 
-# For compatibility with the root config.py file
-def load_config():
-    """Alias for load_settings for backward compatibility."""
+# =============================================================================
+# COMPATIBILITY FUNCTIONS - For backward compatibility with older code
+# =============================================================================
+
+def load_config() -> None:
+    """Alias for load_settings for backward compatibility.
+    
+    Returns:
+        None
+    """
     load_settings()
 
-def save_config():
-    """Alias for save_settings for backward compatibility."""
-    save_settings()
+def save_config() -> bool:
+    """Alias for save_settings for backward compatibility.
+    
+    Returns:
+        bool: True if settings were saved successfully, False otherwise
+    """
+    return save_settings()
 
 # Make the settings accessible as config.config to maintain compatibility
 # Create a config variable that points to _settings
 config = _settings
 
 # Update the config reference whenever _settings is updated
-def _update_config_reference():
+def _update_config_reference() -> None:
+    """Update the config reference to point to the current _settings.
+    
+    This function is used to maintain compatibility with code that uses the
+    config.config pattern to access settings.
+    
+    Returns:
+        None
+    """
     global config, _settings
     config = _settings
 

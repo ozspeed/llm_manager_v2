@@ -212,6 +212,12 @@
                                 <input type="password" class="form-control" id="huggingface-api-token" name="huggingface_api_token">
                                 <div class="form-text">API token for Hugging Face (required for downloading models)</div>
                             </div>
+                            
+                            <div class="mb-3">
+                                <label for="search-results-limit" class="form-label">Search Results Limit</label>
+                                <input type="number" class="form-control" id="search-results-limit" name="search_results_limit" min="1" max="100">
+                                <div class="form-text">Number of search results to return for all queries (1-100)</div>
+                            </div>
 
                         </form>
                     </div>
@@ -437,6 +443,7 @@
                 document.getElementById('ollama-repos').value = (ollama.repositories || []).join(',');
                 document.getElementById('huggingface-enabled').checked = huggingface.enabled || false;
                 document.getElementById('huggingface-api-token').value = huggingface.api_token || '';
+                document.getElementById('search-results-limit').value = huggingface.search_results_limit || 50;
                 
                 // Clear existing repositories
                 document.getElementById('tool-repositories-container').innerHTML = '';
@@ -801,6 +808,7 @@
                 const ollamaRepos = document.getElementById('ollama-repos').value.split(',').map(repo => repo.trim()).filter(repo => repo);
                 const huggingfaceEnabled = document.getElementById('huggingface-enabled').checked;
                 const huggingfaceApiToken = document.getElementById('huggingface-api-token').value;
+                const searchResultsLimit = parseInt(document.getElementById('search-results-limit').value) || 50;
                 
                 // Collect tool repositories
                 const toolRepositories = collectRepositories();
@@ -816,6 +824,7 @@
                     'frameworks.ollama.repositories': ollamaRepos,
                     'frameworks.huggingface.enabled': huggingfaceEnabled,
                     'frameworks.huggingface.api_token': huggingfaceApiToken,
+                    'frameworks.huggingface.search_results_limit': searchResultsLimit,
                     'tool_repositories': toolRepositories
                 };
                 

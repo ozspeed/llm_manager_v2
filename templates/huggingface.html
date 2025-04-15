@@ -545,14 +545,48 @@
             `;
             
             try {
-                // Refresh recent searches to include this new search
-                loadRecentSearches();
-                
                 const response = await fetch(`/api/huggingface/search?query=${encodeURIComponent(query)}&model_type=${encodeURIComponent(modelType)}`);
                 const data = await response.json();
                 
                 // Hide loading status
                 searchStatus.classList.add('d-none');
+                
+                // Add the current search to recent searches in the UI (without waiting for server)
+                if (query.trim() !== '') {
+                    // First update the UI directly to ensure immediate feedback
+                    const container = document.getElementById('recent-searches');
+                    const existingBadge = Array.from(container.children).find(badge => 
+                        badge.textContent === query && badge.classList.contains('search-badge'));
+                    
+                    if (!existingBadge) {
+                        // Only add if not already present
+                        const badge = document.createElement('span');
+                        badge.className = 'badge rounded-pill bg-light text-dark me-1 mb-1 search-badge';
+                        badge.textContent = query;
+                        badge.title = `Search for "${query}"`;
+                        badge.style.cursor = 'pointer';
+                        badge.dataset.query = query;
+                        badge.dataset.modelType = modelType;
+                        
+                        // Add click handler
+                        badge.addEventListener('click', () => {
+                            document.getElementById('search-query').value = query;
+                            document.getElementById('model-type').value = modelType;
+                            searchModels();
+                        });
+                        
+                        // Add to beginning, right after trending
+                        const firstChild = container.firstChild;
+                        if (firstChild && firstChild.classList && firstChild.classList.contains('trending-badge')) {
+                            container.insertBefore(badge, firstChild.nextSibling);
+                        } else {
+                            container.prepend(badge);
+                        }
+                    }
+                }
+                
+                // Then also refresh from server to ensure synchronization
+                loadRecentSearches();
                 
                 // Update result count
                 document.getElementById('result-count').textContent = `${data.count} models found`;
@@ -1192,23 +1226,23 @@
         async function loadPopularModels() {
             try {
                 const resultsContainer = document.getElementById('search-results');
-                const loadingElement = document.getElementById('loading-models');
                 
                 // Update UI to show we're loading trending models
                 document.getElementById('results-title').textContent = 'Trending Models';
                 
+                // Make the API request to get popular models
                 const response = await fetch('/api/huggingface/popular-models');
                 const data = await response.json();
                 
-                // Remove loading indicator
-                if (loadingElement) {
-                    loadingElement.remove();
-                }
+                // Clear any existing content in the results container
+                // This will remove any loading spinners or previous results
+                resultsContainer.innerHTML = '';
                 
                 // Update result count
-                document.getElementById('result-count').textContent = `${data.count} models found`;
+                const count = data.results ? data.results.length : 0;
+                document.getElementById('result-count').textContent = `${count} models found`;
                 
-                if (data.success && data.results.length > 0) {
+                if (data.success && data.results && data.results.length > 0) {
                     // Display results
                     data.results.forEach(model => {
                         resultsContainer.appendChild(createModelCard(model));
@@ -1249,17 +1283,52 @@
                     // Display recent searches as clickable badges
                     data.searches.forEach(search => {
                         const badge = document.createElement('button');
-                        badge.className = 'btn btn-sm btn-outline-secondary';
-                        badge.textContent = search.query;
-                        badge.title = `Search for "${search.query}"`;
                         
-                        // Add click handler to perform the search
+                        // Special handling for trending tag
+                        const isTrending = search.query === 'trending';
+                        
+                        // Style trending tag differently
+                        if (isTrending) {
+                            badge.className = 'btn btn-sm btn-primary';
+                            badge.innerHTML = '<i class="bi bi-fire"></i> Trending';
+                            badge.title = 'Show trending models';
+                        } else {
+                            badge.className = 'btn btn-sm btn-outline-secondary';
+                            badge.textContent = search.query;
+                            badge.title = `Search for "${search.query}"`;
+                        }
+                        
+                        // Add click handler with special behavior for trending
                         badge.addEventListener('click', function() {
-                            document.getElementById('search-query').value = search.query;
-                            if (search.model_type) {
-                                document.getElementById('model-type').value = search.model_type;
+                            if (isTrending) {
+                                // For trending tag, load popular models instead of searching
+                                document.getElementById('results-title').textContent = 'Trending Models';
+                                
+                                // Clear out any existing search parameters
+                                document.getElementById('search-query').value = '';
+                                document.getElementById('model-type').value = search.model_type || 'text-generation';
+                                
+                                // Reset the UI to show we're loading trending models
+                                const resultsContainer = document.getElementById('search-results');
+                                resultsContainer.innerHTML = `
+                                    <div class="col-12 text-center py-3">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading trending models...</p>
+                                    </div>
+                                `;
+                                
+                                // Load popular models
+                                loadPopularModels();
+                            } else {
+                                // For regular searches, perform the search
+                                document.getElementById('search-query').value = search.query;
+                                if (search.model_type) {
+                                    document.getElementById('model-type').value = search.model_type;
+                                }
+                                searchModels();
                             }
-                            searchModels();
                         });
                         
                         container.appendChild(badge);
