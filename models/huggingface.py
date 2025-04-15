@@ -1,18 +1,14 @@
 """
-Hugging Face integration for the LLM Model Manager.
+Hugging Face module for the LLM Model Manager.
 
-This module provides functionality for integrating with the Hugging Face Hub API,
-including searching, downloading, and managing models from Hugging Face.
-
-It handles:
-- Authentication with the Hugging Face API
-- Searching for models with various filters
-- Downloading models to a draft area
+This module provides functions for:
+- Searching for models on Hugging Face
+- Getting trending models
+- Downloading models
 - Moving models from the draft area to the model library
 - Managing the draft download area
 
-The module implements a fallback mechanism with hardcoded popular models
-when the API is not available or not configured.
+The module implements a fallback mechanism with database caching when the API is not available or not configured.
 """
 
 # Standard library imports
@@ -71,336 +67,235 @@ def initialize_huggingface() -> bool:
 # MODEL DISCOVERY AND SEARCH
 # =============================================================================
 
-def get_popular_models(limit: int = 12, model_type: str | None = None) -> list[dict]:
+def get_trending_models(limit: int = 50, model_type: str | None = None) -> list[dict]:
     """
     Get trending models from Hugging Face based on recent activity and popularity.
+    This function uses the unified search_models approach with trending-specific parameters.
     
     This function attempts to retrieve popular models using the following strategy:
-    1. First check for cached popular models from search history
-    2. If no cached models or not enough, fetch from Hugging Face API
-    3. If API is not available or configured, fall back to hardcoded popular models
+    1. First try to fetch from Hugging Face API using trending search parameters
+    2. If API fails, fall back to cached popular models from search history
     
     Args:
-        limit (int, optional): Maximum number of models to return. Defaults to 12.
+        limit (int, optional): Maximum number of models to return. Defaults to 50.
         model_type (str, optional): Type of model to filter by. Defaults to None.
-        
-    Returns:
-        list[dict]: List of trending model information dictionaries with the following keys:
-            - id: Model ID (e.g., 'TheBloke/Llama-2-7B-GGUF')
-            - name: Display name of the model
-            - downloads: Number of downloads (if available)
-            - likes: Number of likes (if available)
-            - last_modified: Last modified date (if available)
-            - tags: List of tags associated with the model
-            - description: Short description of the model
-    """
-    try:
-        # First try to get cached popular models from search history
-        from models.search_history import get_popular_models as get_cached_popular_models
-        cached_models = get_cached_popular_models()
-        
-        if cached_models and len(cached_models) >= limit:
-            logger.info(f"Using cached popular models (count: {len(cached_models)})")
-            return cached_models[:limit]
-        
-        # Check if Hugging Face API is enabled and configured
-        from models.config import get_huggingface_enabled, get_huggingface_api_token
-        
-        if not get_huggingface_enabled():
-            logger.warning("Hugging Face API is not enabled in settings")
-            # Return some hardcoded popular models as a fallback
-            return get_hardcoded_popular_models(limit)
-            
-        api_token = get_huggingface_api_token()
-        if not api_token:
-            logger.warning("Hugging Face API token is not configured")
-            # Return some hardcoded popular models as a fallback
-            return get_hardcoded_popular_models(limit)
-        
-        # If no cached models or not enough, fetch from API
-        logger.info(f"Fetching popular models from Hugging Face API")
-        api = HfApi(token=api_token)
-        filters = ModelFilter()
-        
-        # Add specific filters to get only GGUF models which are most relevant
-        if not model_type:
-            # Default to text generation models if no type specified
-            filters.pipeline_tag = "text-generation"
-        else:
-            filters.pipeline_tag = model_type
-            
-        # Add filter for GGUF models
-        filters.tags = ["gguf"]
-        
-        # Sort by last modified date to get trending models
-        # This prioritizes recently updated models which are more likely to be trending
-        logger.info(f"Querying Hugging Face API with filters: {filters}")
-        models = api.list_models(filter=filters, sort="last_modified", direction=-1, limit=limit*2)
-        
-        # If we have more models than needed, we'll do a hybrid sort that considers
-        # both recency and popularity to get truly trending models
-        if len(models) > limit:
-            # Calculate a trending score that combines recency and downloads
-            # Higher score = more trending
-            for model in models:
-                # Convert last_modified to days ago (newer = smaller number)
-                if model.last_modified:
-                    import datetime
-                    days_ago = (datetime.datetime.now(datetime.timezone.utc) - model.last_modified).days
-                    # Avoid division by zero
-                    days_ago = max(1, days_ago)
-                else:
-                    days_ago = 365  # Default to a year ago if no date
-                
-                # Trending score formula: downloads / days_ago
-                # This prioritizes recent models with high download counts
-                model.trending_score = model.downloads / days_ago
-            
-            # Sort by trending score
-            models = sorted(models, key=lambda m: getattr(m, 'trending_score', 0), reverse=True)
-            
-            # Limit to requested number
-            models = models[:limit]
-        
-        results = []
-        for model in models:
-            results.append({
-                "id": model.id,
-                "name": model.id.split('/')[-1],
-                "author": model.id.split('/')[0] if '/' in model.id else 'Unknown',
-                "downloads": model.downloads,
-                "likes": model.likes,
-                "tags": model.tags,
-                "pipeline_tag": model.pipeline_tag,
-                "last_modified": model.last_modified.isoformat() if model.last_modified else None,
-                "url": f"https://huggingface.co/{model.id}"
-            })
-        
-        # If API returned no results, use hardcoded models
-        if not results:
-            logger.warning("Hugging Face API returned no models, using hardcoded models")
-            results = get_hardcoded_popular_models(limit)
-        
-        # Cache the results for future use
-        if results:
-            from models.search_history import update_popular_models
-            update_popular_models(results)
-            
-        return results
-    except Exception as e:
-        logger.error(f"Error fetching popular Hugging Face models: {str(e)}")
-        logger.exception(e)
-        # Return hardcoded models as fallback
-        return get_hardcoded_popular_models(limit)
-        
-def get_hardcoded_popular_models(limit: int = 12) -> list[dict]:
-    """
-    Get a list of hardcoded trending models as a fallback when API is not available.
-    
-    Args:
-        limit (int, optional): Maximum number of models to return
         
     Returns:
         list[dict]: List of trending model information dictionaries
     """
-    # Import datetime for generating recent timestamps
-    from datetime import datetime, timedelta
-    
-    # Generate recent dates for trending models
-    now = datetime.now()
-    today = now.strftime("%Y-%m-%dT%H:%M:%S")
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
-    two_days_ago = (now - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%S")
-    three_days_ago = (now - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%S")
-    last_week = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S")
-    two_weeks_ago = (now - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%S")
-    
-    # List of trending models with their metadata
-    popular_models = [
-        {
-            "id": "TheBloke/Llama-3-8B-Instruct-GGUF",
-            "name": "Llama-3-8B-Instruct-GGUF",
-            "author": "TheBloke",
-            "downloads": 250000,
-            "likes": 1500,
-            "tags": ["llama", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": yesterday,
-            "url": "https://huggingface.co/TheBloke/Llama-3-8B-Instruct-GGUF"
-        },
-        {
-            "id": "TheBloke/Phi-3-mini-4k-instruct-GGUF",
-            "name": "Phi-3-mini-4k-instruct-GGUF",
-            "author": "TheBloke",
-            "downloads": 150000,
-            "likes": 900,
-            "tags": ["phi", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": today,
-            "url": "https://huggingface.co/TheBloke/Phi-3-mini-4k-instruct-GGUF"
-        },
-        {
-            "id": "TheBloke/Llama-3-70B-Instruct-GGUF",
-            "name": "Llama-3-70B-Instruct-GGUF",
-            "author": "TheBloke",
-            "downloads": 90000,
-            "likes": 600,
-            "tags": ["llama", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": two_days_ago,
-            "url": "https://huggingface.co/TheBloke/Llama-3-70B-Instruct-GGUF"
-        },
-        {
-            "id": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
-            "name": "Mistral-7B-Instruct-v0.2-GGUF",
-            "author": "TheBloke",
-            "downloads": 200000,
-            "likes": 1200,
-            "tags": ["mistral", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": three_days_ago,
-            "url": "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF"
-        },
-        {
-            "id": "TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF",
-            "name": "Mixtral-8x7B-Instruct-v0.1-GGUF",
-            "author": "TheBloke",
-            "downloads": 160000,
-            "likes": 950,
-            "tags": ["mixtral", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": last_week,
-            "url": "https://huggingface.co/TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF"
-        },
-        {
-            "id": "TheBloke/Gemma-7B-it-GGUF",
-            "name": "Gemma-7B-it-GGUF",
-            "author": "TheBloke",
-            "downloads": 130000,
-            "likes": 800,
-            "tags": ["gemma", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": two_days_ago,
-            "url": "https://huggingface.co/TheBloke/Gemma-7B-it-GGUF"
-        },
-        {
-            "id": "TheBloke/neural-chat-7B-v3-1-GGUF",
-            "name": "neural-chat-7B-v3-1-GGUF",
-            "author": "TheBloke",
-            "downloads": 85000,
-            "likes": 620,
-            "tags": ["neural-chat", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": yesterday,
-            "url": "https://huggingface.co/TheBloke/neural-chat-7B-v3-1-GGUF"
-        },
-        {
-            "id": "TheBloke/Qwen2-7B-Instruct-GGUF",
-            "name": "Qwen2-7B-Instruct-GGUF",
-            "author": "TheBloke",
-            "downloads": 95000,
-            "likes": 580,
-            "tags": ["qwen", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": today,
-            "url": "https://huggingface.co/TheBloke/Qwen2-7B-Instruct-GGUF"
-        },
-        {
-            "id": "TheBloke/Llama-2-13B-chat-GGUF",
-            "name": "Llama-2-13B-chat-GGUF",
-            "author": "TheBloke",
-            "downloads": 180000,
-            "likes": 1100,
-            "tags": ["llama", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": two_weeks_ago,
-            "url": "https://huggingface.co/TheBloke/Llama-2-13B-chat-GGUF"
-        },
-        {
-            "id": "TheBloke/Phi-3-medium-4k-instruct-GGUF",
-            "name": "Phi-3-medium-4k-instruct-GGUF",
-            "author": "TheBloke",
-            "downloads": 75000,
-            "likes": 580,
-            "tags": ["phi", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": yesterday,
-            "url": "https://huggingface.co/TheBloke/Phi-3-medium-4k-instruct-GGUF"
-        },
-        {
-            "id": "TheBloke/StableLM-2-1.6B-GGUF",
-            "name": "StableLM-2-1.6B-GGUF",
-            "author": "TheBloke",
-            "downloads": 65000,
-            "likes": 520,
-            "tags": ["stablelm", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": today,
-            "url": "https://huggingface.co/TheBloke/StableLM-2-1.6B-GGUF"
-        },
-        {
-            "id": "TheBloke/Llama-3-8B-GGUF",
-            "name": "Llama-3-8B-GGUF",
-            "author": "TheBloke",
-            "downloads": 120000,
-            "likes": 780,
-            "tags": ["llama", "gguf", "text-generation"],
-            "pipeline_tag": "text-generation",
-            "last_modified": three_days_ago,
-            "url": "https://huggingface.co/TheBloke/Llama-3-8B-GGUF"
-        }
-    ]
-    
-    return popular_models[:limit]
+    try:
+        # Try to get the user-configured limit from settings
+        from models.config import get_setting
+        configured_limit = get_setting("frameworks.huggingface.search_results_limit", default=50)
+        # Use the smaller of the function parameter or configured limit
+        limit = min(limit, int(configured_limit))
+        logger.info(f"Using search results limit for trending models: {limit}")
+        
+        # Always add 'trending' to the search history with the persistent flag
+        # This ensures there's always a trending tag available
+        from models.search_history import add_search_query
+        actual_model_type = model_type if model_type else "text-generation"
+        add_search_query("trending", actual_model_type, is_persistent=True)
+        
+        # Get trending search configuration from settings
+        trending_config = get_setting("frameworks.huggingface.trending_search", {
+            "query": "",
+            "model_type": "text-generation",
+            "tags": ["gguf"],
+            "sort_by": "last_modified",
+            "sort_direction": -1
+        })
+        
+        # If model_type is provided, override the config
+        if model_type:
+            trending_config["model_type"] = model_type
+        
+        # Use the search_models function with trending parameters
+        # First try to get models from the API
+        results = search_models(
+            query=trending_config.get("query", ""),
+            model_type=trending_config.get("model_type"),
+            limit=limit,
+            tags=trending_config.get("tags"),
+            sort_by=trending_config.get("sort_by", "last_modified"),
+            sort_direction=trending_config.get("sort_direction", -1),
+            is_trending=True
+        )
+        
+        # If we got results from the search, return them
+        if results:
+            logger.info(f"Successfully retrieved {len(results)} trending models from API")
+            # Update cached models
+            from models.search_history import update_popular_models
+            update_popular_models(results)
+            return results
+        
+        # If we get here, the API call failed or returned no results
+        # Fall back to cached models from search history
+        from models.search_history import get_popular_models as get_cached_popular_models
+        cached_models = get_cached_popular_models()
+        
+        if cached_models:
+            logger.info(f"Using cached popular models from database (count: {len(cached_models)})")
+            return cached_models[:limit]
+        else:
+            logger.warning("No cached models found and API unavailable or failed.")
+            # Return an empty list if no models available
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error fetching trending models: {str(e)}")
+        logger.exception(e)
+        
+        # Attempt to get cached models as final fallback
+        try:
+            from models.search_history import get_popular_models as get_cached_popular_models
+            cached_models = get_cached_popular_models()
+            if cached_models:
+                logger.info(f"Using cached popular models after error (count: {len(cached_models)})")
+                return cached_models[:limit]
+        except Exception as cache_error:
+            logger.error(f"Error getting cached models: {str(cache_error)}")
+        
+        # If all else fails, return empty list
+        return []
 
-def search_models(query: str, model_type: str | None = None, limit: int = 50) -> list[dict]:
+
+# Backwards compatibility alias
+def get_popular_models(limit: int = 50, model_type: str | None = None) -> list[dict]:
     """
-    Search for models on Hugging Face.
+    Alias for get_trending_models for backward compatibility.
     
     Args:
-        query (str): Search query
-        model_type (str, optional): Type of model to search for (e.g., 'llm', 'text-generation')
-        limit (int, optional): Maximum number of results to return
+        limit (int, optional): Maximum number of models to return. Defaults to 50.
+        model_type (str, optional): Type of model to filter by. Defaults to None.
+        
+    Returns:
+        list[dict]: List of trending model information dictionaries
+    """
+    return get_trending_models(limit, model_type)
+        
+
+
+def search_models(query: str = "", model_type: str | None = None, limit: int | None = None, 
+              tags: list[str] | None = None, 
+              sort_by: str = "downloads", 
+              sort_direction: int = -1,
+              is_trending: bool = False,
+              no_fallback: bool = False) -> list[dict]:
+    """
+    Search for models on Hugging Face with enhanced parameters.
+    This unified function handles both regular searches and trending model retrieval.
+    
+    Args:
+        query (str, optional): Search query. Default is empty string.
+        model_type (str, optional): Type of model to search for (e.g., 'text-generation')
+        limit (int | None, optional): Maximum number of results to return, or None to use configured limit
+        tags (list[str], optional): List of tags to filter by (e.g., ['gguf'])
+        sort_by (str, optional): Field to sort results by (e.g., 'downloads', 'last_modified')
+        sort_direction (int, optional): Sort direction (-1 for descending, 1 for ascending)
+        is_trending (bool, optional): Whether this is a trending models search
+        no_fallback (bool, optional): If True, never fall back to trending for failed searches
         
     Returns:
         list[dict]: List of model information dictionaries
     """
     try:
         # Check if Hugging Face API is enabled and configured
-        from models.config import get_huggingface_enabled, get_huggingface_api_token
+        from models.config import get_huggingface_enabled, get_huggingface_api_token, get_setting
         
         if not get_huggingface_enabled():
             logger.warning("Hugging Face API is not enabled in settings")
-            # Return hardcoded search results as a fallback
-            return search_hardcoded_models(query, model_type, limit)
+            # Return empty list as there's no fallback
+            return []
             
         api_token = get_huggingface_api_token()
         if not api_token:
             logger.warning("Hugging Face API token is not configured")
-            # Return hardcoded search results as a fallback
-            return search_hardcoded_models(query, model_type, limit)
+            # Return empty list as there's no fallback
+            return []
         
-        logger.info(f"Searching for models with query: {query}, model_type: {model_type}")
+        # If limit is not specified, use the configured limit
+        if limit is None:
+            # Get the configured search results limit, default to 50 if not set
+            limit = int(get_setting("frameworks.huggingface.search_results_limit", 50))
+            logger.info(f"Using configured search results limit: {limit}")
+        
+        # Set up search parameters
+        if tags is None:
+            tags = ["gguf"]  # Default to GGUF models
+            
+        # Log the search parameters
+        search_type = "trending models" if is_trending else "models"
+        logger.info(f"Searching for {search_type} with query: '{query}', model_type: {model_type}, sort: {sort_by}")
+        
+        # Initialize API and filters
         api = HfApi(token=api_token)
         filters = ModelFilter()
         
-        # Add specific filters to get only GGUF models which are most relevant
+        # Apply filters based on parameters
         if model_type:
-            filters.task = model_type
-        
-        # Add filter for GGUF models to prioritize them
-        filters.tags = ["gguf"]
+            if hasattr(filters, 'task'):
+                filters.task = model_type
+            elif hasattr(filters, 'pipeline_tag'):
+                filters.pipeline_tag = model_type
+                
+        # Apply tag filters
+        if tags:
+            filters.tags = tags
         
         # Perform the search
         logger.info(f"Querying Hugging Face API with filters: {filters}")
-        models = api.list_models(
-            search=query,
-            filter=filters,
-            limit=limit,
-            sort="downloads",
-            direction=-1
-        )
         
+        # If this is a trending search, we may want different behavior
+        if is_trending and sort_by == "last_modified":
+            # For trending, get more results for better sorting
+            models_generator = api.list_models(
+                search=query,
+                filter=filters,
+                limit=limit*2,  # Get more results for trending to allow for better sorting
+                sort=sort_by,
+                direction=sort_direction
+            )
+            
+            # Convert generator to list so we can work with it
+            models = list(models_generator)
+            
+            # For trending, we'll do a hybrid sort that considers both recency and popularity
+            if len(models) > limit:
+                # Calculate a trending score that combines recency and downloads
+                for model in models:
+                    # Convert last_modified to days ago (newer = smaller number)
+                    if model.last_modified:
+                        import datetime
+                        days_ago = (datetime.datetime.now(datetime.timezone.utc) - model.last_modified).days
+                        # Avoid division by zero
+                        days_ago = max(1, days_ago)
+                    else:
+                        days_ago = 365  # Default to a year ago if no date
+                    
+                    # Trending score formula: downloads / days_ago
+                    # This prioritizes recent models with high download counts
+                    model.trending_score = model.downloads / days_ago
+                
+                # Sort by trending score
+                models = sorted(models, key=lambda m: getattr(m, 'trending_score', 0), reverse=True)
+                
+                # Limit to requested number
+                models = models[:limit]
+        else:
+            # Standard search
+            models_generator = api.list_models(
+                search=query,
+                filter=filters,
+                limit=limit,
+                sort=sort_by,
+                direction=sort_direction
+            )
+            # Convert generator to list
+            models = list(models_generator)
+        
+        # Process results into a standardized format
         results = []
         for model in models:
             results.append({
@@ -412,54 +307,55 @@ def search_models(query: str, model_type: str | None = None, limit: int = 50) ->
                 "tags": model.tags,
                 "pipeline_tag": model.pipeline_tag,
                 "last_modified": model.last_modified.isoformat() if model.last_modified else None,
-                "url": f"https://huggingface.co/{model.id}"
+                "url": f"https://huggingface.co/{model.id}",
+                "is_trending": is_trending  # Mark if this was from a trending search
             })
         
-        # If API returned no results, use hardcoded search results
+        # Save the search to history if we got results
+        if results:
+            # Add the search to history with appropriate label
+            search_label = "trending" if is_trending else query
+            try:
+                from models.search_history import add_search_query
+                add_search_query(search_label, model_type)
+                
+                # If this is a trending search, also update popular models in database
+                if is_trending:
+                    from models.search_history import update_popular_models
+                    update_popular_models(results)
+            except Exception as e:
+                logger.warning(f"Failed to update search history: {str(e)}")
+        
+        # If API returned no results for a non-trending search, we might want to return trending models instead
+        # unless no_fallback is set to True
+        if not results and not is_trending and not no_fallback:
+            # Check if we have any trending models in the database already
+            # If we do, don't fall back to trending (as requested)
+            from models.search_history import get_popular_models
+            cached_models = get_popular_models()
+            
+            if cached_models:
+                logger.info(f"Search for '{query}' returned no results, but we have cached trending models")
+                # We have cached trending models, so don't fall back to trending
+                return []
+                
+            logger.info(f"Search for '{query}' returned no results, falling back to trending models")
+            # Fall back to trending models only if we don't have any cached models
+            return get_trending_models(limit, model_type)
+            
+        # If API returned no results, return an empty list
         if not results:
-            logger.warning(f"Hugging Face API returned no models for query '{query}', using hardcoded results")
-            return search_hardcoded_models(query, model_type, limit)
+            search_type = "trending models" if is_trending else f"models matching '{query}'"
+            logger.warning(f"Hugging Face API returned no {search_type}")
+            return []
         
         return results
     except Exception as e:
         logger.error(f"Error searching Hugging Face models: {str(e)}")
         logger.exception(e)
-        # Return hardcoded search results as fallback
-        return search_hardcoded_models(query, model_type, limit)
+        # Return empty list as there's no fallback
+        return []
 
-def search_hardcoded_models(query: str, model_type: str | None = None, limit: int = 50) -> list[dict]:
-    """
-    Search through hardcoded models when the API is not available.
-    
-    Args:
-        query (str): Search query
-        model_type (str, optional): Type of model to filter by
-        limit (int, optional): Maximum number of results to return
-        
-    Returns:
-        list[dict]: List of matching model information dictionaries
-    """
-    # Get all hardcoded models
-    all_models = get_hardcoded_popular_models(100)  # Get a larger set to search through
-    
-    # Filter by query (case-insensitive)
-    query = query.lower()
-    filtered_models = []
-    
-    for model in all_models:
-        # Check if query matches model id, name, or tags
-        if (query in model["id"].lower() or 
-            query in model["name"].lower() or 
-            any(query in tag.lower() for tag in model.get("tags", []))):
-            
-            # If model_type is specified, filter by that too
-            if model_type and model.get("pipeline_tag") != model_type:
-                continue
-                
-            filtered_models.append(model)
-    
-    # Return limited results
-    return filtered_models[:limit]
 
 # =============================================================================
 # MODEL DOWNLOAD AND MANAGEMENT
@@ -502,10 +398,9 @@ def download_model(model_id: str, filename: str | None = None) -> dict:
         publisher = parts[0]
         model_name = parts[1]
         
-        # Create publisher and model directories
+        # Create publisher directory
         publisher_dir = os.path.join(draft_area, publisher)
-        model_dir = os.path.join(publisher_dir, model_name)
-        os.makedirs(model_dir, exist_ok=True)
+        os.makedirs(publisher_dir, exist_ok=True)
         
         # Get model files
         try:
@@ -530,9 +425,23 @@ def download_model(model_id: str, filename: str | None = None) -> dict:
         # Download files
         downloaded_files = []
         file_size = 0
+        
+        # Create a unique subfolder for each model file based on its name
         for file in model_files:
+            # Get the base filename without extension
+            base_filename = os.path.splitext(os.path.basename(file))[0]
+            
+            # Create a unique model subfolder
+            # Use both model_name and base_filename to create a unique folder
+            model_subfolder = f"{model_name}-{base_filename}"
+            model_dir = os.path.join(publisher_dir, model_subfolder)
+            os.makedirs(model_dir, exist_ok=True)
+            
+            # Set the target path for the file
             target_path = os.path.join(model_dir, os.path.basename(file))
+            
             try:
+                # Download the file to the unique subfolder
                 api.hf_hub_download(
                     repo_id=model_id,
                     filename=file,
@@ -548,7 +457,7 @@ def download_model(model_id: str, filename: str | None = None) -> dict:
                     "filename": os.path.basename(file),
                     "path": target_path,
                     "publisher": publisher,
-                    "model": model_name,
+                    "model": model_subfolder,  # Use the unique subfolder name
                     "size": file_size
                 })
                 logger.info(f"Downloaded {file} to {target_path} ({file_size} bytes)")
@@ -556,13 +465,17 @@ def download_model(model_id: str, filename: str | None = None) -> dict:
                 logger.error(f"Error downloading {file}: {str(e)}")
                 return {"success": False, "error": f"Error downloading {file}: {str(e)}"}
         
+        # If we have downloaded files, use the location of the first file
+        # as the model location for backward compatibility
+        model_location = os.path.dirname(downloaded_files[0]["path"]) if downloaded_files else ""
+        
         return {
             "success": True,
             "model_id": model_id,
             "publisher": publisher,
             "model_name": model_name,
             "files": downloaded_files,
-            "location": model_dir,
+            "location": model_location,
             "fileSize": file_size  # Include the file size in the response
         }
     except Exception as e:

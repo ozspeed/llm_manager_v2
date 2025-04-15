@@ -29,7 +29,15 @@ DEFAULT_SETTINGS = {
         },
         "huggingface": {
             "enabled": False,
-            "api_token": ""
+            "api_token": "",
+            "search_results_limit": 50,
+            "trending_search": {
+                "query": "",
+                "model_type": "text-generation",
+                "tags": ["gguf"],
+                "sort_by": "last_modified",
+                "sort_direction": -1
+            }
         }
     },
     "tool_repositories": []
