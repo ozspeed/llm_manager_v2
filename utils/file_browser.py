@@ -10,7 +10,14 @@ from flask import jsonify
 def browse_directories(path):
     """
     Browse directories at the specified path.
-    Returns a list of subdirectories and parent directory.
+    Returns a dictionary with current path, parent directory, and list of subdirectories.
+    
+    Args:
+        path (str): The directory path to browse
+        
+    Returns:
+        dict or tuple: Directory information as a dictionary on success, or
+                     an error tuple (dict, status_code) on failure
     """
     try:
         # Normalize path
@@ -33,10 +40,12 @@ def browse_directories(path):
             # Sort directories by name
             directories.sort(key=lambda x: x["name"].lower())
         
-        return jsonify({
+        # Return raw data instead of a jsonify response
+        return {
             "current_path": path,
             "parent_dir": parent_dir,
             "directories": directories
-        })
+        }
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # Return error tuple with raw dict and status code
+        return {"error": str(e)}, 500

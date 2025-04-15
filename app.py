@@ -726,8 +726,9 @@ def browse_dir() -> Tuple[Dict[str, Any], int]:
     if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], dict) and isinstance(result[1], int):
         return result
     
-    # Otherwise, wrap it in a success response
-    return api_success_response(f"Directory listing for {path}", {"result": result})
+    # Return the raw data as-is to match frontend expectations
+    # The data should already be structured as expected: { directories: [...], current_path: '...', parent_dir: '...' }
+    return result
 
 # API endpoint to update configuration
 @app.route('/api/config', methods=['POST'])
