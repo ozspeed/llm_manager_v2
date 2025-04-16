@@ -48,6 +48,8 @@ from utils.error_handler import api_error_response, api_success_response, handle
 # Initialize Flask app
 app = Flask(__name__, static_folder='static')
 CORS(app)
+# Register global error handler for all exceptions
+app.register_error_handler(Exception, handle_api_exception)
 
 # Initialize database
 init_db()
@@ -105,7 +107,6 @@ def api_test():
 # =============================================================================
 
 @app.route('/api/models', methods=['GET'])
-@handle_api_exception
 def get_models() -> Tuple[Dict[str, Any], int]:
     """Get all models from the database.
     
@@ -129,7 +130,6 @@ def get_models() -> Tuple[Dict[str, Any], int]:
     return models, 200
 
 @app.route('/api/models', methods=['POST'])
-@handle_api_exception
 def create_model() -> Tuple[Dict[str, Any], int]:
     """Create a new model entry in the database.
     
@@ -184,7 +184,6 @@ def create_model() -> Tuple[Dict[str, Any], int]:
     return api_success_response("Model created successfully", {"model": result})
 
 @app.route('/api/models/<int:model_id>', methods=['DELETE'])
-@handle_api_exception
 def remove_model(model_id: int) -> Tuple[Dict[str, Any], int]:
     """Remove a model from the database.
     
@@ -216,7 +215,6 @@ def remove_model(model_id: int) -> Tuple[Dict[str, Any], int]:
     return api_success_response(f"Model {model_id} deleted successfully", {"result": result})
 
 @app.route('/api/scan', methods=['GET'])
-@handle_api_exception
 def scan_models() -> Tuple[Dict[str, Any], int]:
     """Scan for models in the specified directory and optionally include Ollama models.
     
@@ -273,7 +271,6 @@ def scan_models() -> Tuple[Dict[str, Any], int]:
     )
 
 @app.route('/api/system-info', methods=['GET'])
-@handle_api_exception
 def system_info() -> Tuple[Dict[str, Any], int]:
     """Get system information including OS, CPU, memory, and disk usage.
     
@@ -294,7 +291,6 @@ def system_info() -> Tuple[Dict[str, Any], int]:
     return api_success_response("System information retrieved successfully", info)
 
 @app.route('/api/refresh-models', methods=['POST'])
-@handle_api_exception
 def refresh_models() -> Tuple[Dict[str, Any], int]:
     """Refresh the models in the database by scanning the model library.
     
@@ -345,7 +341,6 @@ def refresh_models() -> Tuple[Dict[str, Any], int]:
     )
 
 @app.route('/api/reset-database', methods=['POST'])
-@handle_api_exception
 def reset_db() -> Tuple[Dict[str, Any], int]:
     """Reset the database to its initial state.
     
@@ -366,7 +361,6 @@ def reset_db() -> Tuple[Dict[str, Any], int]:
 
 # API endpoint to add a model with directory structure
 @app.route('/api/add-model', methods=['POST'])
-@handle_api_exception
 def add_model_with_directory() -> Tuple[Dict[str, Any], int]:
     """Add a model by copying files from source to the model library with directory structure.
     
@@ -575,7 +569,6 @@ def add_model_with_directory() -> Tuple[Dict[str, Any], int]:
 
 # API endpoint to confirm model overwrite
 @app.route('/api/confirm-overwrite', methods=['POST'])
-@handle_api_exception
 def confirm_overwrite() -> Tuple[Dict[str, Any], int]:
     """Confirm overwriting an existing model.
     
@@ -664,7 +657,6 @@ def confirm_overwrite() -> Tuple[Dict[str, Any], int]:
 
 # API endpoint to get configuration
 @app.route('/api/config', methods=['GET'])
-@handle_api_exception
 def get_config() -> Tuple[Dict[str, Any], int]:
     """Get the current configuration.
     
@@ -704,7 +696,6 @@ def get_config() -> Tuple[Dict[str, Any], int]:
 
 # API endpoint to browse directories
 @app.route('/api/browse', methods=['GET'])
-@handle_api_exception
 def browse_dir() -> Tuple[Dict[str, Any], int]:
     """Browse directories for the directory selector.
     
@@ -732,7 +723,6 @@ def browse_dir() -> Tuple[Dict[str, Any], int]:
 
 # API endpoint to update configuration
 @app.route('/api/config', methods=['POST'])
-@handle_api_exception
 def update_config() -> Tuple[Dict[str, Any], int]:
     """Update configuration settings.
     
@@ -768,7 +758,6 @@ def update_config() -> Tuple[Dict[str, Any], int]:
 
 # API endpoint to sync repository with AI Library
 @app.route('/api/sync_repository', methods=['POST'])
-@handle_api_exception
 def sync_repository() -> Tuple[Dict[str, Any], int]:
     """Sync repository with AI Library by creating symlinks based on repository settings.
     
@@ -978,7 +967,6 @@ def sync_repository() -> Tuple[Dict[str, Any], int]:
 
 # API endpoint to scan for models in a directory
 @app.route('/api/scan-models-in-dir', methods=['POST'])
-@handle_api_exception
 def scan_models_in_directory() -> Tuple[Dict[str, Any], int]:
     """Scan a directory for models and return a list of discovered models.
     
@@ -1409,7 +1397,6 @@ def stop_server():
 
 # Hugging Face API endpoints
 @app.route('/api/huggingface/search', methods=['GET'])
-@handle_api_exception
 def hf_search() -> Tuple[Dict[str, Any], int]:
     """Search for models on Hugging Face.
     
@@ -1485,7 +1472,6 @@ def hf_search() -> Tuple[Dict[str, Any], int]:
     )
 
 @app.route('/api/huggingface/popular-models', methods=['GET'])
-@handle_api_exception
 def hf_popular_models() -> Tuple[Dict[str, Any], int]:
     """Get trending models from Hugging Face.
     
@@ -1521,7 +1507,6 @@ def hf_popular_models() -> Tuple[Dict[str, Any], int]:
     )
 
 @app.route('/api/huggingface/recent-searches', methods=['GET'])
-@handle_api_exception
 def hf_recent_searches() -> Tuple[Dict[str, Any], int]:
     """Get recent search queries.
     
@@ -1545,7 +1530,6 @@ def hf_recent_searches() -> Tuple[Dict[str, Any], int]:
     )
 
 @app.route('/api/huggingface/download', methods=['POST'])
-@handle_api_exception
 def hf_download() -> Tuple[Dict[str, Any], int]:
     """Download a model from Hugging Face to the draft download area.
     
@@ -1575,7 +1559,6 @@ def hf_download() -> Tuple[Dict[str, Any], int]:
     return result, 200
 
 @app.route('/api/huggingface/draft-models', methods=['GET'])
-@handle_api_exception
 def hf_list_draft_models() -> Tuple[Dict[str, Any], int]:
     """List all models in the draft download area.
     
@@ -1631,7 +1614,6 @@ def hf_list_draft_models() -> Tuple[Dict[str, Any], int]:
         return {"success": False, "error": str(e)}, 500
 
 @app.route('/api/huggingface/files', methods=['GET'])
-@handle_api_exception
 def hf_get_files() -> Tuple[Dict[str, Any], int]:
     """Get files for a specific model on Hugging Face.
     
@@ -1655,7 +1637,6 @@ def hf_get_files() -> Tuple[Dict[str, Any], int]:
     return result, 200
 
 @app.route('/api/huggingface/move-to-library', methods=['POST'])
-@handle_api_exception
 def hf_move_to_library() -> Tuple[Dict[str, Any], int]:
     """Move a model from the draft download area to the model library.
     
@@ -1721,7 +1702,6 @@ def hf_move_to_library() -> Tuple[Dict[str, Any], int]:
     return result, 200
 
 @app.route('/api/huggingface/delete-draft', methods=['POST'])
-@handle_api_exception
 def hf_delete_draft() -> Tuple[Dict[str, Any], int]:
     """Delete a model from the draft download area without adding it to the library.
     
@@ -1802,7 +1782,6 @@ def hf_delete_draft() -> Tuple[Dict[str, Any], int]:
 
 # API endpoint to update trending models limit
 @app.route('/api/config/huggingface/search-limit', methods=['GET', 'POST'])
-@handle_api_exception
 def update_search_results_limit() -> Tuple[Dict[str, Any], int]:
     """Get or update the search results limit configuration.
     
@@ -1860,7 +1839,6 @@ def update_search_results_limit() -> Tuple[Dict[str, Any], int]:
 
 
 @app.route('/api/config/huggingface/trending-search', methods=['GET', 'POST'])
-@handle_api_exception
 def trending_search_config() -> Tuple[Dict[str, Any], int]:
     """Get or update the trending search configuration.
     
