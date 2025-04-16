@@ -23,3 +23,4 @@ build/
 .vscode/
 *.swp
 *.swo
+llm_manager_v2/models_uploads/
