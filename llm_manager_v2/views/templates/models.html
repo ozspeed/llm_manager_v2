@@ -1,0 +1,38 @@
+<!-- [V2-7.1.1] Model Management UI -->
+{% extends "base.html" %}
+{% block title %}Models Library | LLM Model Manager v2{% endblock %}
+{% block head %}<script defer src="/static/models.js"></script>{% endblock %}
+{% block content %}
+    <h2>Models Library</h2>
+    <section>
+        <h2>Add New Model</h2>
+        <form id="upload-form" enctype="multipart/form-data">
+            <input type="file" name="file" required>
+            <input type="text" name="name" placeholder="Model Name" required>
+            <select name="framework" required>
+                <option value="gguf">GGUF</option>
+                <option value="pytorch">PyTorch</option>
+                <option value="onnx">ONNX</option>
+                <option value="other">Other</option>
+            </select>
+            <button type="submit">Upload</button>
+        </form>
+        <div id="upload-feedback"></div>
+    </section>
+    <section>
+        <h2>Existing Models</h2>
+        <div id="models-list">
+            <!-- Model cards will be injected here -->
+        </div>
+        <div id="models-feedback"></div>
+    </section>
+    <button class="fab" id="scan-fab" title="Scan Library" aria-label="Scan Library">
+        <span aria-hidden="true">🔍</span>
+    </button>
+    <div id="model-details-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="model-details-content"></div>
+        </div>
+    </div>
+{% endblock %}
