@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 import traceback
 
-from config.settings import get_config
+from llm_manager_v2.config.settings import get_config
 
 # =============================================================================
 # DATABASE INITIALIZATION AND SCHEMA MANAGEMENT

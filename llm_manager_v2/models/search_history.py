@@ -13,7 +13,7 @@ import os
 import threading
 from typing import List, Dict, Optional
 
-from config.settings import get_config
+from llm_manager_v2.config.settings import get_config
 
 _DB_PATH = os.environ.get('SEARCH_HISTORY_DB', 'search_history.db')
 _DB_LOCK = threading.Lock()

@@ -16,6 +16,12 @@
                 <option value="other">Other</option>
             </select>
             <button type="submit">Upload</button>
+          <button class="fab" id="scan-fab" title="Scan Library" aria-label="Scan Library">
+    <span aria-hidden="true">🔍</span>
+  </button>
+  <div id="scan-feedback" role="status" aria-live="polite" style="margin-bottom: 1rem;"></div>
+  <div id="scan-spinner" style="display:none;">Scanning...</div>
+  <section id="scan-results"></section>
         </form>
         <div id="upload-feedback"></div>
     </section>

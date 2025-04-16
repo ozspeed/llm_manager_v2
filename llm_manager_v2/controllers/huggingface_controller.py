@@ -4,7 +4,7 @@ Flask Blueprint for Hugging Face API endpoints.
 """
 from flask import Blueprint, jsonify, request
 from models.search_history import get_popular_models
-from services.huggingface_service import search_models, get_trending_models
+from llm_manager_v2.services.huggingface_service import search_models, get_trending_models
 
 huggingface_bp = Blueprint('huggingface', __name__, url_prefix='/api/huggingface')
 

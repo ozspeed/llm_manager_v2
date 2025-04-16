@@ -1,8 +1,8 @@
 """
 [V2-6.1] Service logic tests for LLM Manager v2
 """
-from services.huggingface_service import search_models, get_trending_models
-from services.model_service import list_models
+from llm_manager_v2.services.huggingface_service import search_models, get_trending_models
+from llm_manager_v2.services.model_service import list_models
 
 def test_search_models():
     results = search_models("llama")

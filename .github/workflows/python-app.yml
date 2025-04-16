@@ -1,0 +1,54 @@
+name: Python application
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      flask:
+        image: python:3.12
+        ports:
+          - 5050:5050
+        options: >-
+          --health-cmd "curl --fail http://localhost:5050 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        env:
+          FLASK_APP: llm_manager_v2/app.py
+          FLASK_ENV: development
+        command: >-
+          bash -c "pip3 install -r requirements.txt && pip3 install flask && flask run --host=0.0.0.0 --port=5050"
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        pip3 install pytest pytest-cov playwright
+        if [ -f requirements.txt ]; then pip3 install -r requirements.txt; fi
+        python3 -m playwright install --with-deps
+    - name: Run backend tests with coverage
+      run: |
+        pytest --cov=llm_manager_v2 --cov-report=xml --cov-report=term-missing
+    - name: Run Playwright UI tests
+      env:
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      run: |
+        sleep 10  # Wait for Flask app to be ready
+        pytest llm_manager_v2/tests/ui_tests/
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage.xml
+        fail_ci_if_error: true
+        verbose: true

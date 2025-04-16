@@ -1,0 +1,51 @@
+{
+    "app": {
+        "version": "1.3.0",
+        "port": 8001,
+        "debug": true
+    },
+    "paths": {
+        "model_library": "/Volumes/Library_Bolt/AI Model Library",
+        "draft_download_area": "/Users/simon/Downloads/LLM_Downloads",
+        "database": "models.db"
+    },
+    "models": {
+        "extensions": [
+            ".gguf",
+            ".ggml",
+            ".bin",
+            ".safetensors",
+            ".onnx",
+            ".pt",
+            ".pth"
+        ]
+    },
+    "frameworks": {
+        "ollama": {
+            "enabled": true,
+            "repositories": [
+                "ollama"
+            ]
+        }
+    },
+    "tool_repositories": [
+        {
+            "name": "Ollama",
+            "use_ai_library": true,
+            "symlink_from_library": true,
+            "repository_location": "/usr/local/bin/ollama",
+            "require_parent_directory": false,
+            "understands_shards": false,
+            "audit_trail": []
+        },
+        {
+            "name": "GPT4All",
+            "use_ai_library": false,
+            "symlink_from_library": false,
+            "repository_location": "",
+            "require_parent_directory": false,
+            "understands_shards": false,
+            "audit_trail": []
+        }
+    ]
+}

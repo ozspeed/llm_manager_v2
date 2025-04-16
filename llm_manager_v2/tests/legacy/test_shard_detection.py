@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from models.detection import is_shard_file, extract_base_name, MODEL_EXTENSIONS
+from llm_manager_v2.models.detection import is_shard_file, extract_base_name, MODEL_EXTENSIONS
 
 # Test files focusing on the 000X of 000Y format for .gguf files
 test_files = [

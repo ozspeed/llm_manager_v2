@@ -1,8 +1,8 @@
 """
 [V2-6.1] Model/database smoke tests for LLM Manager v2
 """
-from models.search_history import add_search_query, get_recent_searches, clear_search_history
-from models.database import init_db, add_model, get_all_models, delete_model, reset_database
+from llm_manager_v2.models.search_history import add_search_query, get_recent_searches, clear_search_history
+from llm_manager_v2.models.database import init_db, add_model, get_all_models, delete_model, reset_database
 
 def test_search_history_crud():
     clear_search_history()

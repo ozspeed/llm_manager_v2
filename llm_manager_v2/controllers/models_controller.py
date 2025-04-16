@@ -3,7 +3,7 @@ models_controller.py (v2)
 Flask Blueprint for model CRUD API endpoints.
 """
 from flask import Blueprint, jsonify, request, send_file
-from services.model_service import list_models, add_model_service, get_model_details, delete_model_service
+from llm_manager_v2.services.model_service import list_models, add_model_service, get_model_details, delete_model_service
 
 models_bp = Blueprint('models', __name__, url_prefix='/api/models')
 

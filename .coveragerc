@@ -1,0 +1,12 @@
+[run]
+omit =
+    llm_manager_v2/tests/*
+    */test_*.py
+    */conftest.py
+    */__init__.py
+    */migrations/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:

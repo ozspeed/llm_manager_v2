@@ -21,11 +21,13 @@ def test_huggingface_recent_searches(test_client):
     assert isinstance(data, list)
 
 def test_settings(test_client):
+    # Ensure the setting is present
+    test_client.put("/api/settings/library_root", json={"value": "/tmp"})
     resp = test_client.get("/api/settings")
     assert resp.status_code == 200
     data = resp.get_json()
     assert isinstance(data, dict)
-    assert "SECRET_KEY" in data
+    assert "library_root" in data
 
 def test_models(test_client):
     resp = test_client.get("/api/models")

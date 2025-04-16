@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 import re
-from models.detection import is_shard_file, extract_base_name, count_shards, MODEL_EXTENSIONS
+from llm_manager_v2.models.detection import is_shard_file, extract_base_name, count_shards, MODEL_EXTENSIONS
 
 # Test directory with known sharded models
 test_dir = "/Volumes/Library_Bolt/AI Model Library/Draft/Deepseek/Dynamic 2 bit Quant"

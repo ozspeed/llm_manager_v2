@@ -1,6 +1,6 @@
 # [V2-6.1] Pytest fixtures for LLM Manager v2
 import pytest
-from app import create_app
+from llm_manager_v2.app import create_app
 
 @pytest.fixture(scope="module")
 def test_client():

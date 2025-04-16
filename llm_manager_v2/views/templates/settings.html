@@ -3,6 +3,71 @@
 {% block title %}Settings | LLM Model Manager v2{% endblock %}
 {% block content %}
     <h2>Settings</h2>
+    <section class="card">
+      <h2>Library Root Directory</h2>
+      <form id="library-root-form" style="display: flex; gap: 1rem; align-items: flex-end;">
+        <input type="text" id="library-root-input" name="library_root" placeholder="/path/to/model/library" style="flex: 1;" aria-label="Model Library Root Directory">
+        <button type="button" id="browse-root-btn" title="Browse for directory" aria-label="Browse for directory" style="padding: 0.6rem 1rem;">📁</button>
+        <button type="submit">Save</button>
+        <input type="file" id="dir-picker" style="display:none;" webkitdirectory directory multiple>
+      </form>
+      <div id="library-root-feedback" role="status" aria-live="polite" style="margin-top: 0.5rem;"></div>
+    </section>
+    <script>
+      async function fetchLibraryRoot() {
+        const res = await fetch('/api/settings/library_root');
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('library-root-input').value = data.value;
+        }
+      }
+      async function saveLibraryRoot(evt) {
+        evt.preventDefault();
+        const input = document.getElementById('library-root-input');
+        const feedback = document.getElementById('library-root-feedback');
+        const value = input.value.trim();
+        feedback.textContent = '';
+        if (!value) {
+          feedback.textContent = 'Please enter a valid directory.';
+          return;
+        }
+        const res = await fetch('/api/settings/library_root', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value })
+        });
+        if (res.ok) {
+          feedback.textContent = 'Library root updated successfully!';
+        } else {
+          const err = await res.json();
+          feedback.textContent = err.error || 'Failed to update library root.';
+        }
+      }
+      document.getElementById('library-root-form').addEventListener('submit', saveLibraryRoot);
+      fetchLibraryRoot();
+      document.getElementById('browse-root-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        document.getElementById('dir-picker').click();
+      });
+      document.getElementById('dir-picker').addEventListener('change', function(e) {
+        const files = e.target.files;
+        if (files.length > 0) {
+          // Try to infer the common root directory from the first file
+          const first = files[0];
+          // Chrome: webkitRelativePath gives e.g. "Publisher/ModelName/model.bin"
+          let root = '';
+          if (first && first.webkitRelativePath) {
+            const parts = first.webkitRelativePath.split('/');
+            if (parts.length > 1) {
+              // Remove publisher/modelname/filename
+              root = first.path ? first.path : parts.slice(0, -2).join('/');
+            }
+          }
+          // Fallback: set to empty or best guess
+          document.getElementById('library-root-input').value = root || '';
+        }
+      });
+    </script>
     <div>
         <p>Application settings will be displayed here.</p>
     </div>
