@@ -4,15 +4,20 @@ Flask Blueprint for Hugging Face API endpoints.
 """
 from flask import Blueprint, jsonify, request
 from models.search_history import get_popular_models
+from services.huggingface_service import search_models, get_trending_models
 
 huggingface_bp = Blueprint('huggingface', __name__, url_prefix='/api/huggingface')
 
 @huggingface_bp.route('/search', methods=['GET'])
-def search_models():
-    # TODO: Integrate with Hugging Face service/model
+def search_models_api():
     query = request.args.get('query', '')
-    # Placeholder response
-    return jsonify({"results": [], "query": query})
+    results = search_models(query)
+    return jsonify({"results": results, "query": query})
+
+@huggingface_bp.route('/trending', methods=['GET'])
+def trending_models_api():
+    results = get_trending_models()
+    return jsonify({"results": results})
 
 @huggingface_bp.route('/recent-searches', methods=['GET'])
 def recent_searches():

@@ -1,0 +1,7 @@
+body { font-family: Arial, sans-serif; background: #f8f9fa; color: #222; }
+h1 { color: #2a4d7c; }
+nav { margin-bottom: 20px; }
+nav a { padding: 0 10px; text-decoration: none; color: #2a4d7c; }
+nav a:hover { text-decoration: underline; }
+form { margin-bottom: 20px; }
+#results { margin-top: 20px; }
