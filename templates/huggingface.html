@@ -230,1138 +230,263 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Format bytes to human-readable format
-        function formatBytes(bytes, decimals = 2) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const dm = decimals < 0 ? 0 : decimals;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+// Check if Hugging Face API is configured
+async function checkHuggingFaceConfig() {
+    try {
+        const response = await fetch('/api/config');
+        const data = await response.json();
+        const settings = data.message || {};
+        const frameworks = settings.frameworks || {};
+        const huggingface = frameworks.huggingface || {};
+
+        if (!huggingface.enabled || !huggingface.api_token) {
+            // Show the alert if API is not configured
+            document.getElementById('api-config-alert').classList.remove('d-none');
+            return false;
+        } else {
+            // Hide the alert if API is configured
+            document.getElementById('api-config-alert').classList.add('d-none');
+            return true;
         }
-        // Global variables
-        let currentModelId = null;
-        let currentModelFiles = [];
-        
-        // Define global loadDraftModels function to avoid errors
-        window.loadDraftModels = async function() {
-            try {
-                console.log('Loading draft models...');
-                const response = await fetch('/api/huggingface/draft-models');
-                const data = await response.json();
-                
-                const draftModelsContainer = document.getElementById('draft-models-container');
-                if (!draftModelsContainer) {
-                    console.log('Draft models container not found');
-                    return;
-                }
-                
-                if (data.success && data.models.length > 0) {
-                    draftModelsContainer.innerHTML = '';
-                    data.models.forEach(model => {
-                        const card = document.createElement('div');
-                        card.className = 'card mb-3 draft-model-card';
-                        card.innerHTML = `
-                            <div class="card-body">
-                                <h5 class="card-title">${model.name}</h5>
-                                <p class="card-text">Size: ${formatBytes(model.size)}</p>
-                                <p class="card-text">Path: ${model.path}</p>
-                                <div class="d-flex justify-content-between">
-                                    <button class="btn btn-sm btn-success move-to-library" data-model-id="${model.id}">Move to Library</button>
-                                    <button class="btn btn-sm btn-danger delete-draft" data-model-id="${model.id}">Delete</button>
-                                </div>
-                            </div>
-                        `;
-                        draftModelsContainer.appendChild(card);
-                        
-                        // Add event listeners to the buttons
-                        const moveBtn = card.querySelector('.move-to-library');
-                        if (moveBtn) {
-                            moveBtn.addEventListener('click', function() {
-                                const modelId = this.getAttribute('data-model-id');
-                                moveDraftToLibrary(modelId, model.name);
-                            });
-                        }
-                        
-                        const deleteBtn = card.querySelector('.delete-draft');
-                        if (deleteBtn) {
-                            deleteBtn.addEventListener('click', function() {
-                                const modelId = this.getAttribute('data-model-id');
-                                deleteDraftModel(modelId, model.name);
-                            });
-                        }
-                    });
-                } else {
-                    draftModelsContainer.innerHTML = '<p class="text-muted">No draft models available</p>';
-                }
-            } catch (error) {
-                console.error('Error loading draft models:', error);
-            }
-        };
-        
-        // Format bytes to human-readable format
-        function formatBytes(bytes, decimals = 2) {
-            if (bytes === 0) return '0 Bytes';
-            if (!bytes) return 'Unknown';
-            
-            const k = 1024;
-            const dm = decimals < 0 ? 0 : decimals;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-            
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-        }
-        
-        // Initialize page
-        document.addEventListener('DOMContentLoaded', function() {
-            // Define the loadDraftModels function if it doesn't exist
-            if (typeof loadDraftModels !== 'function') {
-                window.loadDraftModels = async function() {
-                    try {
-                        console.log('[DRAFT MODELS] Loading draft models...');
-                        
-                        // Get the container element
-                        const draftModelsContainer = document.getElementById('draft-models-container');
-                        if (!draftModelsContainer) {
-                            console.log('[DRAFT MODELS] Container not found');
-                            return;
-                        }
-                        
-                        // Fetch draft models from API
-                        const response = await fetch('/api/huggingface/draft-models');
-                        if (!response.ok) {
-                            throw new Error(`API returned ${response.status}: ${response.statusText}`);
-                        }
-                        
-                        const data = await response.json();
-                        console.log('[DRAFT MODELS] Data received:', data);
-                        
-                        // Clear the container
-                        draftModelsContainer.innerHTML = '';
-                        
-                        // Check if we have models to display
-                        if (data.success && data.models && data.models.length > 0) {
-                            // Create and append model cards
-                            data.models.forEach(model => {
-                                const card = document.createElement('div');
-                                card.className = 'card mb-3 draft-model-card';
-                                card.innerHTML = `
-                                    <div class="card-body">
-                                        <h5 class="card-title">${model.name}</h5>
-                                        <p class="card-text">Size: ${formatBytes(model.size)}</p>
-                                        <p class="card-text">Path: ${model.path}</p>
-                                        <div class="d-flex justify-content-between">
-                                            <button class="btn btn-sm btn-success move-to-library" data-model-id="${model.id}">Move to Library</button>
-                                            <button class="btn btn-sm btn-danger delete-draft" data-model-id="${model.id}">Delete</button>
-                                        </div>
-                                    </div>
-                                `;
-                                draftModelsContainer.appendChild(card);
-                                
-                                // Add event listeners to the buttons
-                                const moveBtn = card.querySelector('.move-to-library');
-                                if (moveBtn) {
-                                    moveBtn.addEventListener('click', function() {
-                                        const modelId = this.getAttribute('data-model-id');
-                                        moveDraftToLibrary(modelId, model.name);
-                                    });
-                                }
-                                
-                                const deleteBtn = card.querySelector('.delete-draft');
-                                if (deleteBtn) {
-                                    deleteBtn.addEventListener('click', function() {
-                                        const modelId = this.getAttribute('data-model-id');
-                                        deleteDraftModel(modelId, model.name);
-                                    });
-                                }
-                            });
-                        } else {
-                            // No models to display
-                            const noModelsElement = document.createElement('p');
-                            noModelsElement.className = 'text-muted';
-                            noModelsElement.textContent = 'No draft models available';
-                            draftModelsContainer.appendChild(noModelsElement);
-                        }
-                    } catch (error) {
-                        console.error('[DRAFT MODELS] Error:', error);
-                        // Only log to activity if it's not the specific error we're trying to avoid
-                        if (!error.message || !error.message.includes('null is not an object')) {
-                            safeLogActivity(`Error loading draft models: ${error.message || 'Unknown error'}`, 'warning');
-                        }
-                    }
-                };
-                
-                // Function to move a draft model to the library
-                window.moveDraftToLibrary = async function(modelId, modelName) {
-                    try {
-                        safeLogActivity(`Moving ${modelName} to library...`, 'info');
-                        
-                        // First, get the model path from the draft models list
-                        const draftResponse = await fetch('/api/huggingface/draft-models');
-                        const draftData = await draftResponse.json();
-                        
-                        if (!draftData.success) {
-                            throw new Error('Failed to fetch draft models');
-                        }
-                        
-                        // Find the model with the matching ID
-                        const model = draftData.models.find(m => m.id === modelId);
-                        if (!model) {
-                            throw new Error(`Model with ID ${modelId} not found in draft area`);
-                        }
-                        
-                        // Send the filepath parameter to the move-to-library endpoint
-                        const response = await fetch('/api/huggingface/move-to-library', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                filepath: model.path
-                            })
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            safeLogActivity(`Successfully moved ${modelName} to library`, 'success');
-                            safeShowToast(`Moved ${modelName} to library`, 'success');
-                            
-                            // Refresh the draft models list with a small delay to ensure server state is updated
-                            setTimeout(() => {
-                                try {
-                                    if (typeof loadDraftModels === 'function') {
-                                        loadDraftModels();
-                                    }
-                                } catch (refreshError) {
-                                    console.error('Error refreshing draft models list:', refreshError);
-                                }
-                            }, 500);
-                        } else {
-                            safeLogActivity(`Error moving ${modelName} to library: ${data.error}`, 'danger');
-                            alert(`Error moving model to library: ${data.error}`);
-                        }
-                    } catch (error) {
-                        console.error('Error moving draft to library:', error);
-                        safeLogActivity(`Error moving ${modelName} to library: ${error.message}`, 'danger');
-                        alert(`Error moving model to library: ${error.message}`);
-                    }
-                };
-                
-                // Function to delete a draft model
-                window.deleteDraftModel = async function(modelId, modelName) {
-                    if (!confirm(`Are you sure you want to delete ${modelName}?`)) {
-                        return;
-                    }
-                    
-                    try {
-                        safeLogActivity(`Deleting ${modelName} from draft area...`, 'info');
-                        
-                        const response = await fetch('/api/huggingface/delete-draft', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                model_id: modelId
-                            })
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            safeLogActivity(`Successfully deleted ${modelName} from draft area`, 'success');
-                            safeShowToast(`Deleted ${modelName}`, 'success');
-                            
-                            // Refresh the draft models list with a small delay to ensure server state is updated
-                            setTimeout(() => {
-                                try {
-                                    if (typeof loadDraftModels === 'function') {
-                                        loadDraftModels();
-                                    }
-                                } catch (refreshError) {
-                                    console.error('Error refreshing draft models list:', refreshError);
-                                }
-                            }, 500);
-                        } else {
-                            safeLogActivity(`Error deleting ${modelName}: ${data.error}`, 'danger');
-                            alert(`Error deleting model: ${data.error}`);
-                        }
-                    } catch (error) {
-                        console.error('Error deleting draft model:', error);
-                        safeLogActivity(`Error deleting ${modelName}: ${error.message}`, 'danger');
-                        alert(`Error deleting model: ${error.message}`);
-                    }
-                };
-            }
-            
-            // Load draft models on page load
-            if (typeof loadDraftModels === 'function') {
-                loadDraftModels();
-            }
-            
-            // Set up event listeners
-            document.getElementById('search-form').addEventListener('submit', function(e) {
-                e.preventDefault();
-                searchModels();
-            });
-            
-            document.getElementById('download-model-btn').addEventListener('click', function() {
-                showDownloadOptions();
-            });
-            
-            document.getElementById('confirm-download-btn').addEventListener('click', function() {
-                downloadSelectedFile();
-            });
-        });
-        
-        // Search for models
-        async function searchModels() {
-            const query = document.getElementById('search-query').value.trim();
-            const modelType = document.getElementById('model-type').value;
-            
-            if (!query) {
-                alert('Please enter a search query');
-                return;
-            }
-            
-            // Show loading status
-            const searchStatus = document.getElementById('search-status');
-            searchStatus.classList.remove('d-none');
-            
-            // Update UI to show we're searching
-            document.getElementById('results-title').textContent = `Search Results: "${query}"`;
-            
-            // Clear previous results
-            const resultsContainer = document.getElementById('search-results');
-            resultsContainer.innerHTML = `
-                <div class="col-12 text-center text-muted py-5">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-3">Searching for "${query}"...</p>
+    } catch (error) {
+        console.error('Error checking Hugging Face config:', error);
+        return false;
+    }
+}
+
+// Create a model card for display in the UI
+function createModelCard(model) {
+    const col = document.createElement('div');
+    col.className = 'col-md-4 col-lg-3 mb-4';
+
+    const card = document.createElement('div');
+    card.className = 'card model-card h-100';
+
+    card.innerHTML = `
+        <div class="card-body d-flex flex-column">
+            <h5 class="card-title">${model.name || model.modelId || 'Unknown Model'}</h5>
+            <p class="card-text"><strong>Downloads:</strong> ${model.downloads || 'N/A'}</p>
+            <p class="card-text"><strong>Last Modified:</strong> ${model.lastModified ? new Date(model.lastModified).toLocaleDateString() : 'N/A'}</p>
+            <div class="mt-auto">
+                <button class="btn btn-primary btn-sm w-100" onclick="showModelDetails('${model.modelId || model.id}')">
+                    <i class="bi bi-info-circle"></i> Details
+                </button>
+            </div>
+        </div>
+    `;
+    col.appendChild(card);
+    return col;
+}
+
+// Load and display trending/popular models
+async function loadPopularModels() {
+    const resultsContainer = document.getElementById('search-results');
+    const resultCount = document.getElementById('result-count');
+    const resultsTitle = document.getElementById('results-title');
+    if (resultsTitle) resultsTitle.textContent = 'Trending Models';
+
+    // Show loading spinner
+    if (resultsContainer) {
+        resultsContainer.innerHTML = `
+            <div class="col-12 text-center py-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
                 </div>
-            `;
-            
-            try {
-                const response = await fetch(`/api/huggingface/search?query=${encodeURIComponent(query)}&model_type=${encodeURIComponent(modelType)}`);
-                const data = await response.json();
-                
-                // Hide loading status
-                searchStatus.classList.add('d-none');
-                
-                // Add the current search to recent searches in the UI (without waiting for server)
-                if (query.trim() !== '') {
-                    // First update the UI directly to ensure immediate feedback
-                    const container = document.getElementById('recent-searches');
-                    const existingBadge = Array.from(container.children).find(badge => 
-                        badge.textContent === query && badge.classList.contains('search-badge'));
-                    
-                    if (!existingBadge) {
-                        // Only add if not already present
-                        const badge = document.createElement('span');
-                        badge.className = 'badge rounded-pill bg-light text-dark me-1 mb-1 search-badge';
-                        badge.textContent = query;
-                        badge.title = `Search for "${query}"`;
-                        badge.style.cursor = 'pointer';
-                        badge.dataset.query = query;
-                        badge.dataset.modelType = modelType;
-                        
-                        // Add click handler
-                        badge.addEventListener('click', () => {
-                            document.getElementById('search-query').value = query;
-                            document.getElementById('model-type').value = modelType;
-                            searchModels();
-                        });
-                        
-                        // Add to beginning, right after trending
-                        const firstChild = container.firstChild;
-                        if (firstChild && firstChild.classList && firstChild.classList.contains('trending-badge')) {
-                            container.insertBefore(badge, firstChild.nextSibling);
-                        } else {
-                            container.prepend(badge);
-                        }
-                    }
-                }
-                
-                // Then also refresh from server to ensure synchronization
-                loadRecentSearches();
-                
-                // Update result count
-                document.getElementById('result-count').textContent = `${data.count} models found`;
-                
-                // Clear results container
-                resultsContainer.innerHTML = '';
-                
-                if (data.success && data.results.length > 0) {
-                    // Display results
-                    data.results.forEach(model => {
-                        resultsContainer.appendChild(createModelCard(model));
-                    });
-                } else {
-                    // No results found
-                    resultsContainer.innerHTML = `
-                        <div class="col-12 text-center text-muted py-5">
-                            <i class="bi bi-emoji-frown" style="font-size: 2rem;"></i>
-                            <p class="mt-3">No models found for "${query}"</p>
-                            <button class="btn btn-outline-primary mt-3" onclick="loadPopularModels()">
-                                <i class="bi bi-arrow-left"></i> Back to Trending Models
-                            </button>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error searching models:', error);
-                searchStatus.classList.add('d-none');
+                <p class="mt-2">Loading trending models...</p>
+            </div>
+        `;
+    }
+    try {
+        const response = await fetch('/api/huggingface/popular-models');
+        const data = await response.json();
+        if (resultsContainer) resultsContainer.innerHTML = '';
+        if (data.success && data.data && Array.isArray(data.data.results) && data.data.results.length > 0) {
+            data.data.results.forEach(model => {
+                resultsContainer.appendChild(createModelCard(model));
+            });
+            if (resultCount) resultCount.textContent = `${data.data.results.length} models found`;
+        } else {
+            if (resultsContainer) {
                 resultsContainer.innerHTML = `
-                    <div class="col-12 text-center text-danger py-5">
-                        <i class="bi bi-exclamation-triangle" style="font-size: 2rem;"></i>
-                        <p class="mt-3">Error searching models: ${error.message}</p>
-                        <button class="btn btn-outline-primary mt-3" onclick="loadPopularModels()">
-                            <i class="bi bi-arrow-left"></i> Back to Trending Models
-                        </button>
+                    <div class="col-12 text-center text-muted py-5">
+                        <i class="bi bi-emoji-frown" style="font-size: 2rem;"></i>
+                        <p class="mt-3">No trending models found. Try searching instead.</p>
                     </div>
                 `;
             }
+            if (resultCount) resultCount.textContent = '0 models found';
+        }
+    } catch (error) {
+        console.error('Error loading popular models:', error);
+        if (resultsContainer) {
+            resultsContainer.innerHTML = `
+                <div class="col-12 text-center text-danger py-5">
+                    <i class="bi bi-exclamation-triangle" style="font-size: 2rem;"></i>
+                    <p class="mt-3">Error loading trending models: ${error.message}</p>
+                </div>
+            `;
+        }
+        if (resultCount) resultCount.textContent = '0 models found';
+    }
+}
+
+// Format bytes to human-readable format
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+// Global variables
+let currentModelId = null;
+let currentModelFiles = [];
+
+// Define global loadDraftModels function to avoid errors
+window.loadDraftModels = async function() {
+    try {
+        console.log('Loading draft models...');
+        const draftResponse = await fetch('/api/huggingface/draft-models');
+        const draftData = await draftResponse.json();
+
+        const draftModelsContainer = document.getElementById('draft-models-container');
+        if (!draftModelsContainer) {
+            console.log('Draft models container not found');
+            return;
         }
         
-        // Create a model card element
-        function createModelCard(model) {
-            const card = document.createElement('div');
-            card.className = 'col-md-6 col-lg-4';
-            
-            // Format tags
-            const tags = model.tags ? model.tags.map(tag => 
-                `<span class="badge bg-secondary tag-badge">${tag}</span>`
-            ).join('') : '';
-            
-            card.innerHTML = `
-                <div class="card model-card h-100">
+        if (draftData.success && draftData.models.length > 0) {
+            draftModelsContainer.innerHTML = '';
+            draftData.models.forEach(model => {
+                const card = document.createElement('div');
+                card.className = 'card mb-3 draft-model-card';
+                card.innerHTML = `
                     <div class="card-body">
                         <h5 class="card-title">${model.name}</h5>
-                        <h6 class="card-subtitle mb-2 text-muted">${model.author}</h6>
-                        <div class="mb-2">
-                            ${tags}
+                        <p class="card-text">Size: ${formatBytes(model.size)}</p>
+                        <p class="card-text">Path: ${model.path}</p>
+                        <div class="d-flex justify-content-between">
+                            <button class="btn btn-sm btn-success move-to-library" data-model-id="${model.id}">Move to Library</button>
+                            <button class="btn btn-sm btn-danger delete-draft" data-model-id="${model.id}">Delete</button>
                         </div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="badge bg-info">
-                                <i class="bi bi-download"></i> ${model.downloads.toLocaleString()}
-                            </span>
-                            <span class="badge bg-warning text-dark">
-                                <i class="bi bi-heart"></i> ${model.likes.toLocaleString()}
-                            </span>
-                        </div>
-                        ${model.pipeline_tag ? 
-                            `<div class="mb-2">
-                                <span class="badge bg-primary">${model.pipeline_tag}</span>
-                            </div>` : ''
-                        }
-                    </div>
-                    <div class="card-footer bg-transparent border-top-0">
-                        <button class="btn btn-sm btn-primary view-details-btn" data-model-id="${model.id}">
-                            <i class="bi bi-info-circle"></i> Details
-                        </button>
-                        <a href="${model.url}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-box-arrow-up-right"></i> View on HF
-                        </a>
-                    </div>
-                </div>
-            `;
-            
-            // Add event listener for view details button
-            card.querySelector('.view-details-btn').addEventListener('click', function() {
-                showModelDetails(model);
-            });
-            
-            return card;
-        }
-        
-        // Show model details in modal
-        function showModelDetails(model) {
-            currentModelId = model.id;
-            
-            const modalTitle = document.getElementById('model-details-title');
-            const modalBody = document.getElementById('model-details-body');
-            
-            modalTitle.textContent = model.name;
-            
-            modalBody.innerHTML = `
-                <div class="row">
-                    <div class="col-md-8">
-                        <p><strong>Author:</strong> ${model.author}</p>
-                        <p><strong>Model ID:</strong> ${model.id}</p>
-                        <p><strong>Downloads:</strong> ${model.downloads.toLocaleString()}</p>
-                        <p><strong>Likes:</strong> ${model.likes.toLocaleString()}</p>
-                        ${model.pipeline_tag ? `<p><strong>Pipeline:</strong> ${model.pipeline_tag}</p>` : ''}
-                        ${model.last_modified ? `<p><strong>Last Modified:</strong> ${new Date(model.last_modified).toLocaleString()}</p>` : ''}
-                    </div>
-                    <div class="col-md-4">
-                        <div class="d-grid gap-2">
-                            <a href="${model.url}" target="_blank" class="btn btn-outline-primary">
-                                <i class="bi bi-box-arrow-up-right"></i> View on Hugging Face
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <hr>
-                <div class="mt-3">
-                    <h6>Tags</h6>
-                    <div>
-                        ${model.tags ? model.tags.map(tag => 
-                            `<span class="badge bg-secondary tag-badge">${tag}</span>`
-                        ).join('') : 'No tags available'}
-                    </div>
-                </div>
-                <div class="mt-3" id="model-files-loading">
-                    <div class="d-flex align-items-center">
-                        <div class="spinner-border spinner-border-sm me-2" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        Loading model files...
-                    </div>
-                </div>
-                <div class="mt-3 d-none" id="model-files-container">
-                    <h6>Available Files</h6>
-                    <ul class="list-group" id="model-files-list">
-                        <!-- Files will be listed here -->
-                    </ul>
-                </div>
-            `;
-            
-            // Show the modal
-            const modal = new bootstrap.Modal(document.getElementById('model-details-modal'));
-            modal.show();
-            
-            // Fetch model files
-            fetchModelFiles(model.id);
-        }
-        
-        // Fetch files for a model
-        async function fetchModelFiles(modelId) {
-            try {
-                // Show loading indicator
-                document.getElementById('model-files-loading').classList.remove('d-none');
-                document.getElementById('model-files-container').classList.add('d-none');
-                
-                // Fetch the actual files from the API
-                const response = await fetch(`/api/huggingface/files?model_id=${encodeURIComponent(modelId)}`);
-                const data = await response.json();
-                
-                // Hide loading indicator
-                document.getElementById('model-files-loading').classList.add('d-none');
-                
-                // Show files container
-                const filesContainer = document.getElementById('model-files-container');
-                filesContainer.classList.remove('d-none');
-                
-                const filesList = document.getElementById('model-files-list');
-                filesList.innerHTML = '';
-                
-                if (!data.success) {
-                    // Show error message
-                    filesList.innerHTML = `
-                        <li class="list-group-item text-danger">
-                            <i class="bi bi-exclamation-triangle"></i> 
-                            ${data.error || 'Failed to load model files'}
-                        </li>
-                    `;
-                    return;
-                }
-                
-                if (!data.files || data.files.length === 0) {
-                    // No files found
-                    filesList.innerHTML = `
-                        <li class="list-group-item text-muted">
-                            <i class="bi bi-info-circle"></i> No files found for this model
-                        </li>
-                    `;
-                    return;
-                }
-                
-                // Filter files to show only relevant ones (model files, configs, etc.)
-                const modelExtensions = [".gguf", ".ggml", ".bin", ".safetensors", ".onnx", ".pt", ".pth"];
-                const configFiles = ["config.json", "tokenizer.model", "tokenizer.json", "vocab.json", "merges.txt"];
-                
-                // Handle both old format (strings) and new format (objects with name and size)
-                const normalizedFiles = data.files.map(file => {
-                    if (typeof file === 'object' && file.name) {
-                        return file; // Already in the right format
-                    } else {
-                        return { name: file, size: 0 }; // Convert string to object format
-                    }
-                });
-                
-                // Sort files by importance and filter out less relevant ones
-                const sortedFiles = normalizedFiles.sort((a, b) => {
-                    const fileA = a.name;
-                    const fileB = b.name;
-                    
-                    // Get file extensions
-                    const extA = fileA.substring(fileA.lastIndexOf('.'));
-                    const extB = fileB.substring(fileB.lastIndexOf('.'));
-                    
-                    // Model files come first
-                    const isModelA = modelExtensions.some(ext => fileA.endsWith(ext));
-                    const isModelB = modelExtensions.some(ext => fileB.endsWith(ext));
-                    
-                    if (isModelA && !isModelB) return -1;
-                    if (!isModelA && isModelB) return 1;
-                    
-                    // Config files come next
-                    const isConfigA = configFiles.some(file => fileA.endsWith(file));
-                    const isConfigB = configFiles.some(file => fileB.endsWith(file));
-                    
-                    if (isConfigA && !isConfigB) return -1;
-                    if (!isConfigA && isConfigB) return 1;
-                    
-                    // Sort by name
-                    return fileA.localeCompare(fileB);
-                });
-                
-                // Store the files for later use - keep the full objects
-                currentModelFiles = sortedFiles;
-                
-                // Add files to the list with actual file sizes
-                filesList.innerHTML = '';
-                currentModelFiles.forEach(file => {
-                    // Check if file is an object with name and size properties
-                    let filename, fileSize, filePath;
-                    
-                    if (typeof file === 'object' && file.name) {
-                        // New API format with file sizes
-                        filename = file.name.split('/').pop();
-                        fileSize = file.size || 0;
-                        filePath = file.name;
-                    } else {
-                        // Old format (just strings)
-                        filename = file.split('/').pop();
-                        fileSize = 0;
-                        filePath = file;
-                    }
-                    
-                    // Use actual file size if available, otherwise estimate
-                    let sizeDisplay;
-                    if (fileSize > 0) {
-                        sizeDisplay = formatBytes(fileSize);
-                    } else {
-                        // Fallback to estimation only if actual size is not available
-                        fileSize = estimateFileSize(filePath, modelId);
-                        sizeDisplay = `est. ${formatBytes(fileSize)}`;
-                    }
-                    
-                    const li = document.createElement('li');
-                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
-                    li.innerHTML = `
-                        <div>
-                            <div>${filename}</div>
-                            <small class="text-muted">${sizeDisplay}</small>
-                        </div>
-                        <button class="btn btn-sm btn-primary download-file-btn" data-file="${filePath}">
-                            <i class="bi bi-cloud-download"></i> Download
-                        </button>
-                    `;
-                    filesList.appendChild(li);
-                });
-                
-                // Add event listeners for download buttons
-                document.querySelectorAll('.download-file-btn').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const filename = this.getAttribute('data-file');
-                        downloadFile(currentModelId, filename);
-                    });
-                });
-                
-            } catch (error) {
-                console.error('Error fetching model files:', error);
-                document.getElementById('model-files-loading').classList.add('d-none');
-                
-                const filesContainer = document.getElementById('model-files-container');
-                filesContainer.classList.remove('d-none');
-                const filesList = document.getElementById('model-files-list');
-                filesList.innerHTML = `
-                    <li class="list-group-item text-danger">
-                        <i class="bi bi-exclamation-triangle"></i> 
-                        Error fetching model files: ${error.message}
-                    </li>
-                `;
-            }
-        }
-        
-        // Estimate file size based on file type and model name
-        function estimateFileSize(filename, modelId) {
-            // Extract file extension
-            const ext = filename.split('.').pop().toLowerCase();
-            const lowerModelId = modelId.toLowerCase();
-            const lowerFilename = filename.toLowerCase();
-            
-            // Base size estimates in bytes
-            const sizeEstimates = {
-                'gguf': {
-                    'base': 4 * 1024 * 1024 * 1024, // 4GB for base models
-                    'q2_k': 1 * 1024 * 1024 * 1024, // 1GB for 2-bit quantized
-                    'q3_k_m': 1.4 * 1024 * 1024 * 1024, // 1.4GB for 3-bit quantized
-                    'q4_0': 1.8 * 1024 * 1024 * 1024, // 1.8GB for 4-bit quantized
-                    'q4_1': 2 * 1024 * 1024 * 1024, // 2GB
-                    'q4_k_m': 2 * 1024 * 1024 * 1024, // 2GB
-                    'q5_0': 2.2 * 1024 * 1024 * 1024, // 2.2GB
-                    'q5_1': 2.4 * 1024 * 1024 * 1024, // 2.4GB
-                    'q5_k_m': 2.3 * 1024 * 1024 * 1024, // 2.3GB
-                    'q6_k': 2.7 * 1024 * 1024 * 1024, // 2.7GB
-                    'q8_0': 3.2 * 1024 * 1024 * 1024  // 3.2GB
-                },
-                'bin': 5 * 1024 * 1024 * 1024, // 5GB
-                'safetensors': 4 * 1024 * 1024 * 1024, // 4GB
-                'model': 15 * 1024 * 1024, // 15MB for tokenizer models
-                'json': 500 * 1024, // 500KB for config files
-                'txt': 100 * 1024, // 100KB for text files
-                'md': 50 * 1024 // 50KB for markdown files
-            };
-            
-            // Special case for specific models
-            if (lowerModelId.includes('phi-3') || lowerModelId.includes('phi3')) {
-                // Phi-3 models are smaller
-                if (lowerModelId.includes('mini')) {
-                    // Phi-3-mini base size is around 1.8GB
-                    sizeEstimates.gguf.base = 1.8 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q4_0 = 1 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q4_1 = 1.1 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q5_0 = 1.2 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q5_1 = 1.3 * 1024 * 1024 * 1024;
-                } else if (lowerModelId.includes('medium')) {
-                    // Phi-3-medium base size is around 3.8GB
-                    sizeEstimates.gguf.base = 3.8 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q4_0 = 2 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q4_1 = 2.2 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q5_0 = 2.4 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q5_1 = 2.6 * 1024 * 1024 * 1024;
-                }
-            } else if (lowerModelId.includes('phi-2') || lowerModelId.includes('phi2')) {
-                // Phi-2 models are even smaller
-                sizeEstimates.gguf.base = 1.7 * 1024 * 1024 * 1024; // 1.7GB base size
-                sizeEstimates.gguf.q2_k = 0.6 * 1024 * 1024 * 1024; // 600MB
-                sizeEstimates.gguf.q3_k_m = 0.8 * 1024 * 1024 * 1024; // 800MB
-                sizeEstimates.gguf.q3_k_s = 0.75 * 1024 * 1024 * 1024; // 750MB
-                sizeEstimates.gguf.q4_0 = 0.9 * 1024 * 1024 * 1024; // 900MB
-                sizeEstimates.gguf.q4_1 = 1 * 1024 * 1024 * 1024; // 1GB
-                sizeEstimates.gguf.q5_0 = 1.1 * 1024 * 1024 * 1024; // 1.1GB
-                sizeEstimates.gguf.q5_1 = 1.2 * 1024 * 1024 * 1024; // 1.2GB
-                sizeEstimates.gguf.q8_0 = 1.5 * 1024 * 1024 * 1024; // 1.5GB
-            } else if (lowerModelId.includes('gemma')) {
-                // Gemma models
-                if (lowerModelId.includes('2b')) {
-                    sizeEstimates.gguf.base = 2 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q4_0 = 1 * 1024 * 1024 * 1024;
-                } else if (lowerModelId.includes('7b')) {
-                    sizeEstimates.gguf.base = 7 * 1024 * 1024 * 1024;
-                    sizeEstimates.gguf.q4_0 = 3.5 * 1024 * 1024 * 1024;
-                }
-            }
-            
-            // Adjust size based on model name (7B, 13B, etc.)
-            let sizeFactor = 1.0;
-            if (lowerModelId.includes('1b') || lowerModelId.includes('1.6b')) {
-                sizeFactor = 0.3; // 1B models are ~0.3x the size of 7B models
-            } else if (lowerModelId.includes('2b') || lowerModelId.includes('3b')) {
-                sizeFactor = 0.4; // 2-3B models are ~0.4x the size of 7B models
-            } else if (lowerModelId.includes('7b')) {
-                sizeFactor = 1.0; // Base factor for 7B models
-            } else if (lowerModelId.includes('8b')) {
-                sizeFactor = 1.1; // 8B models are ~1.1x larger than 7B
-            } else if (lowerModelId.includes('13b')) {
-                sizeFactor = 1.8; // 13B models are ~1.8x larger than 7B
-            } else if (lowerModelId.includes('34b') || lowerModelId.includes('35b')) {
-                sizeFactor = 5.0; // 34-35B models are ~5x larger than 7B
-            } else if (lowerModelId.includes('70b')) {
-                sizeFactor = 10.0; // 70B models are ~10x larger than 7B
-            }
-            
-            // Get base size for the extension
-            let baseSize = 1024 * 1024 * 1024; // Default 1GB if unknown
-            
-            // Find the quantization level if present
-            let quantLevel = null;
-            const quantPatterns = ['q2_k', 'q3_k_m', 'q3_k_s', 'q4_0', 'q4_1', 'q4_k_m', 'q5_0', 'q5_1', 'q5_k_m', 'q6_k', 'q8_0'];
-            for (const pattern of quantPatterns) {
-                if (lowerFilename.includes(pattern)) {
-                    quantLevel = pattern;
-                    break;
-                }
-            }
-            
-            if (ext in sizeEstimates) {
-                if (ext === 'gguf' && quantLevel) {
-                    // For quantized GGUF models, use the specific quantization size if available
-                    if (quantLevel in sizeEstimates.gguf) {
-                        baseSize = sizeEstimates.gguf[quantLevel];
-                    } else {
-                        // Fallback to base size with a reduction factor
-                        baseSize = sizeEstimates.gguf.base * 0.5;
-                    }
-                } else if (ext === 'gguf') {
-                    // For non-quantized GGUF models
-                    baseSize = sizeEstimates.gguf.base;
-                } else {
-                    // For other file types
-                    baseSize = sizeEstimates[ext];
-                }
-            }
-            
-            // Calculate final estimated size
-            return Math.round(baseSize * sizeFactor);
-        }
-        
-        // Show download options modal
-        function showDownloadOptions() {
-            const fileSelector = document.getElementById('file-selector');
-            fileSelector.innerHTML = '';
-            
-            // Add file options with sizes
-            currentModelFiles.forEach(file => {
-                // Get file path and size based on format
-                let filePath, fileSize, displayFilename;
-                
-                if (typeof file === 'object' && file.name) {
-                    // New format (object with name and size)
-                    filePath = file.name;
-                    fileSize = file.size || 0;
-                    displayFilename = filePath.split('/').pop();
-                } else {
-                    // Old format (just string)
-                    filePath = file;
-                    displayFilename = filePath.split('/').pop();
-                    fileSize = estimateFileSize(filePath, currentModelId);
-                }
-                
-                const option = document.createElement('option');
-                option.value = filePath; // Keep the full path as the value
-                option.textContent = `${displayFilename} (${formatBytes(fileSize)})`;
-                fileSelector.appendChild(option);
-            });
-            
-            // Show the modal
-            const modal = new bootstrap.Modal(document.getElementById('download-options-modal'));
-            modal.show();
-        }
-        
-        // Safe logging function that checks if parent window access is available
-        function safeLogActivity(message, type = 'info') {
-            try {
-                // Check if we can access the parent window and if it has the logActivity function
-                if (window.parent && typeof window.parent.logActivity === 'function') {
-                    window.parent.logActivity(message, type);
-                } else {
-                    // Fallback to console logging if parent window access is not available
-                    console.log(`[${type.toUpperCase()}] ${message}`);
-                }
-            } catch (e) {
-                // If there's a cross-origin error, just log to console
-                console.log(`[${type.toUpperCase()}] ${message}`);
-                console.warn('Could not access parent window for logging:', e);
-            }
-        }
-        
-        // Safe toast notification function
-        function safeShowToast(message, type = 'info') {
-            try {
-                if (window.parent && typeof window.parent.showToast === 'function') {
-                    window.parent.showToast(message, type);
-                    return true;
-                }
-            } catch (e) {
-                console.warn('Could not access parent window for toast:', e);
-            }
-            return false;
-        }
-        
-        // Download a specific file
-        async function downloadFile(modelId, filename) {
-            try {
-                // Show a loading indicator
-                const downloadBtn = document.querySelector(`.download-file-btn[data-file="${filename}"]`);
-                if (downloadBtn) {
-                    const originalHtml = downloadBtn.innerHTML;
-                    downloadBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Downloading...`;
-                    downloadBtn.disabled = true;
-                    
-                    // Restore the button after 30 seconds in case of timeout
-                    setTimeout(() => {
-                        if (downloadBtn.disabled) {
-                            downloadBtn.innerHTML = originalHtml;
-                            downloadBtn.disabled = false;
-                        }
-                    }, 30000);
-                }
-                
-                // Get just the filename for display purposes
-                const displayFilename = filename.split('/').pop();
-                
-                // Try to find the actual file size from currentModelFiles
-                let fileSize = 0;
-                let sizeText = '';
-                
-                // Look for the file in currentModelFiles to get its actual size
-                const fileInfo = currentModelFiles.find(f => {
-                    if (typeof f === 'object' && f.name) {
-                        return f.name === filename;
-                    } else {
-                        return f === filename;
-                    }
-                });
-                
-                if (fileInfo && typeof fileInfo === 'object' && fileInfo.size) {
-                    fileSize = fileInfo.size;
-                    sizeText = ` (${formatBytes(fileSize)})`;
-                } else {
-                    // Fall back to estimation if we can't find the actual size
-                    fileSize = estimateFileSize(filename, currentModelId);
-                    sizeText = fileSize > 0 ? ` (est. ${formatBytes(fileSize)})` : '';
-                }
-                
-                // Log the start of the download
-                safeLogActivity(`Starting download of ${displayFilename} from ${modelId}${sizeText}...`, 'info');
-                
-                const response = await fetch('/api/huggingface/download', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model_id: modelId,
-                        filename: filename
-                    })
-                });
-                
-                const data = await response.json();
-                
-                // Reset the download button if it exists
-                if (downloadBtn) {
-                    downloadBtn.innerHTML = `<i class="bi bi-cloud-download"></i> Download`;
-                    downloadBtn.disabled = false;
-                }
-                
-                if (data.success) {
-                    // Log successful download with actual file size
-                    if (data.fileSize) {
-                        safeLogActivity(`Successfully downloaded ${displayFilename} (${formatBytes(data.fileSize)}) to draft area`, 'success');
-                    } else {
-                        safeLogActivity(`Successfully downloaded ${displayFilename} to draft area`, 'success');
-                    }
-                    
-                    // Show toast notification if available
-                    if (!safeShowToast(`Downloaded ${displayFilename} successfully`, 'success')) {
-                        alert(`Successfully downloaded ${displayFilename} to draft area`);
-                    }
-                    
-                    // Refresh draft models list if the function exists
-                    if (typeof loadDraftModels === 'function') {
-                        loadDraftModels();
-                    } else {
-                        console.log('Draft models refresh function not available');
-                    }
-                    // Close the modal
-                    bootstrap.Modal.getInstance(document.getElementById('model-details-modal')).hide();
-                } else {
-                    // Log failed download
-                    safeLogActivity(`Error downloading ${displayFilename}: ${data.error}`, 'danger');
-                    
-                    if (data.error === "Hugging Face API not initialized") {
-                        // Show a more helpful error message with instructions
-                        const errorMessage = `Hugging Face API is not initialized. Please go to Settings and:
-\n1. Enable Hugging Face integration\n2. Enter your Hugging Face API token\n\nYou can get an API token from https://huggingface.co/settings/tokens`;
-                        alert(errorMessage);
-                    } else {
-                        alert(`Error downloading file: ${data.error}`);
-                    }
-                }
-            } catch (error) {
-                console.error('Error downloading file:', error);
-                
-                // Log error
-                safeLogActivity(`Error downloading file: ${error.message}`, 'danger');
-                
-                alert(`Error downloading file: ${error.message}`);
-            }
-        }
-        
-        // Download selected file from the options modal
-        function downloadSelectedFile() {
-            const fileSelector = document.getElementById('file-selector');
-            const filename = fileSelector.value;
-            
-            if (filename) {
-                // Close the options modal
-                bootstrap.Modal.getInstance(document.getElementById('download-options-modal')).hide();
-                // Download the file
-                downloadFile(currentModelId, filename);
-            }
-        }
-        
-        // Removed draft models functions
-        
-        // Draft models functions removed
-        
-        // Check if Hugging Face API is configured
-        async function checkHuggingFaceConfig() {
-            try {
-                const response = await fetch('/api/config');
-                const data = await response.json();
-                
-                if (!data.frameworks?.huggingface?.enabled || !data.frameworks?.huggingface?.api_token) {
-                    // Show the alert if API is not configured
-                    document.getElementById('api-config-alert').classList.remove('d-none');
-                    return false;
-                } else {
-                    // Hide the alert if API is configured
-                    document.getElementById('api-config-alert').classList.add('d-none');
-                    return true;
-                }
-            } catch (error) {
-                console.error('Error checking Hugging Face config:', error);
-                return false;
-            }
-        }
-        
-        // Load popular models
-        async function loadPopularModels() {
-            try {
-                const resultsContainer = document.getElementById('search-results');
-                
-                // Update UI to show we're loading trending models
-                document.getElementById('results-title').textContent = 'Trending Models';
-                
-                // Make the API request to get popular models
-                const response = await fetch('/api/huggingface/popular-models');
-                const data = await response.json();
-                
-                // Clear any existing content in the results container
-                // This will remove any loading spinners or previous results
-                resultsContainer.innerHTML = '';
-                
-                // Update result count
-                const count = data.results ? data.results.length : 0;
-                document.getElementById('result-count').textContent = `${count} models found`;
-                
-                if (data.success && data.results && data.results.length > 0) {
-                    // Display results
-                    data.results.forEach(model => {
-                        resultsContainer.appendChild(createModelCard(model));
-                    });
-                } else {
-                    // No results found
-                    resultsContainer.innerHTML = `
-                        <div class="col-12 text-center text-muted py-5">
-                            <i class="bi bi-emoji-frown" style="font-size: 2rem;"></i>
-                            <p class="mt-3">No trending models found. Try searching instead.</p>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error loading popular models:', error);
-                const resultsContainer = document.getElementById('search-results');
-                resultsContainer.innerHTML = `
-                    <div class="col-12 text-center text-danger py-5">
-                        <i class="bi bi-exclamation-triangle" style="font-size: 2rem;"></i>
-                        <p class="mt-3">Error loading trending models: ${error.message}</p>
                     </div>
                 `;
-            }
-        }
-        
-        // Load recent searches
-        async function loadRecentSearches() {
-            try {
-                const container = document.getElementById('recent-searches');
+                draftModelsContainer.appendChild(card);
                 
-                const response = await fetch('/api/huggingface/recent-searches');
-                const data = await response.json();
-                
-                // Clear loading indicator
-                container.innerHTML = '';
-                
-                if (data.success && data.searches.length > 0) {
-                    // Display recent searches as clickable badges
-                    data.searches.forEach(search => {
-                        const badge = document.createElement('button');
-                        
-                        // Special handling for trending tag
-                        const isTrending = search.query === 'trending';
-                        
-                        // Style trending tag differently
-                        if (isTrending) {
-                            badge.className = 'btn btn-sm btn-primary';
-                            badge.innerHTML = '<i class="bi bi-fire"></i> Trending';
-                            badge.title = 'Show trending models';
-                        } else {
-                            badge.className = 'btn btn-sm btn-outline-secondary';
-                            badge.textContent = search.query;
-                            badge.title = `Search for "${search.query}"`;
-                        }
-                        
-                        // Add click handler with special behavior for trending
-                        badge.addEventListener('click', function() {
-                            if (isTrending) {
-                                // For trending tag, load popular models instead of searching
-                                document.getElementById('results-title').textContent = 'Trending Models';
-                                
-                                // Clear out any existing search parameters
-                                document.getElementById('search-query').value = '';
-                                document.getElementById('model-type').value = search.model_type || 'text-generation';
-                                
-                                // Reset the UI to show we're loading trending models
-                                const resultsContainer = document.getElementById('search-results');
-                                resultsContainer.innerHTML = `
-                                    <div class="col-12 text-center py-3">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Loading...</span>
-                                        </div>
-                                        <p class="mt-2">Loading trending models...</p>
-                                    </div>
-                                `;
-                                
-                                // Load popular models
-                                loadPopularModels();
-                            } else {
-                                // For regular searches, perform the search
-                                document.getElementById('search-query').value = search.query;
-                                if (search.model_type) {
-                                    document.getElementById('model-type').value = search.model_type;
-                                }
-                                searchModels();
-                            }
-                        });
-                        
-                        container.appendChild(badge);
+                // Add event listeners to the buttons
+                const moveBtn = card.querySelector('.move-to-library');
+                if (moveBtn) {
+                    moveBtn.addEventListener('click', function() {
+                        const modelId = this.getAttribute('data-model-id');
+                        moveDraftToLibrary(modelId, model.name);
                     });
-                } else {
-                    // No recent searches
-                    container.innerHTML = '<span class="text-muted">No recent searches</span>';
                 }
-            } catch (error) {
-                console.error('Error loading recent searches:', error);
-                const container = document.getElementById('recent-searches');
-                container.innerHTML = '<span class="text-danger">Error loading recent searches</span>';
-            }
-        }
-        
-        // Document ready function
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check if Hugging Face API is configured
-            checkHuggingFaceConfig();
-            
-            // Load popular models and recent searches
-            loadPopularModels();
-            loadRecentSearches();
-            
-            // Add event listeners for search form
-            document.getElementById('search-form').addEventListener('submit', function(e) {
-                e.preventDefault();
-                searchModels();
+                const deleteBtn = card.querySelector('.delete-draft');
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', function() {
+                        const modelId = this.getAttribute('data-model-id');
+                        deleteDraftModel(modelId, model.name);
+                    });
+                }
             });
-            
-            // Add event listener for download selected button
-            document.getElementById('download-selected').addEventListener('click', downloadSelectedFile);
-        });
+        } else {
+            draftModelsContainer.innerHTML = '<span class="text-muted">No draft models found</span>';
+        }
+    } catch (error) {
+        console.error('Error loading draft models:', error);
+        const draftModelsContainer = document.getElementById('draft-models-container');
+        if (draftModelsContainer) draftModelsContainer.innerHTML = '<span class="text-danger">Error loading draft models</span>';
+    }
+}
+
+// Load recent searches
+async function loadRecentSearches() {
+    const container = document.getElementById('recent-searches');
+    if (!container) return;
+    try {
+        const response = await fetch('/api/huggingface/recent-searches');
+        const data = await response.json();
+        
+        // Clear loading indicator
+        container.innerHTML = '';
+        
+        if (data && Array.isArray(data.searches) && data.searches.length > 0) {
+            // Display recent searches as clickable badges
+            data.searches.forEach(search => {
+                const badge = document.createElement('button');
+                
+                // Special handling for trending tag
+                const isTrending = search.query === 'trending';
+                
+                // Style trending tag differently
+                if (isTrending) {
+                    badge.className = 'btn btn-sm btn-primary';
+                    badge.innerHTML = '<i class="bi bi-fire"></i> Trending';
+                    badge.title = 'Show trending models';
+                } else {
+                    badge.className = 'btn btn-sm btn-outline-secondary';
+                    badge.textContent = search.query;
+                    badge.title = 'Search for "' + search.query + '"';
+                }
+                
+                // Add click handler with special behavior for trending
+                badge.addEventListener('click', function() {
+                    if (isTrending) {
+                        var resultsTitle = document.getElementById('results-title');
+                        if (resultsTitle) {
+                            resultsTitle.textContent = 'Trending Models';
+                        }
+                        var searchQuery = document.getElementById('search-query');
+                        if (searchQuery) searchQuery.value = '';
+                        var modelType = document.getElementById('model-type');
+                        if (modelType) modelType.value = search.model_type || 'text-generation';
+                        var resultsContainer = document.getElementById('search-results');
+                        if (resultsContainer) {
+                            resultsContainer.innerHTML = '<div class="col-12 text-center py-3">' +
+                                '<div class="spinner-border text-primary" role="status">' +
+                                '<span class="visually-hidden">Loading...</span>' +
+                                '</div>' +
+                                '<p class="mt-2">Loading trending models...</p>' +
+                                '</div>';
+                        }
+                        loadPopularModels();
+                    } else {
+                        var searchQuery = document.getElementById('search-query');
+                        if (searchQuery) searchQuery.value = search.query;
+                        var modelType = document.getElementById('model-type');
+                        if (modelType && search.model_type) modelType.value = search.model_type;
+                        searchModels();
+                    }
+                });
+                container.appendChild(badge);
+            });
+        } else {
+            // No recent searches
+            container.innerHTML = '<span class="text-muted">No recent searches</span>';
+        }
+    } catch (error) {
+        console.error('Error loading recent searches:', error);
+        container.innerHTML = '<span class="text-danger">Error loading recent searches</span>';
+    }
+}
+
+// Document ready function
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if Hugging Face API is configured
+    checkHuggingFaceConfig();
+    
+    // Load popular models and recent searches
+    loadPopularModels();
+    loadRecentSearches();
+    
+    // Add event listeners for search form
+    document.getElementById('search-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        searchModels();
+    });
+});
     </script>
 </body>
 </html>

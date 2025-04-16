@@ -125,15 +125,12 @@ def get_trending_models(limit: int = 50, model_type: str | None = None) -> list[
         # If we got results from the search, return them
         if results:
             logger.info(f"Successfully retrieved {len(results)} trending models from API")
-            # Update cached models
-            from models.search_history import update_popular_models
-            update_popular_models(results)
             return results
         
         # If we get here, the API call failed or returned no results
         # Fall back to cached models from search history
-        from models.search_history import get_popular_models as get_cached_popular_models
-        cached_models = get_cached_popular_models()
+        from models.search_history import get_popular_models
+        cached_models = get_popular_models()
         
         if cached_models:
             logger.info(f"Using cached popular models from database (count: {len(cached_models)})")
@@ -156,7 +153,6 @@ def get_trending_models(limit: int = 50, model_type: str | None = None) -> list[
                 return cached_models[:limit]
         except Exception as cache_error:
             logger.error(f"Error getting cached models: {str(cache_error)}")
-        
         # If all else fails, return empty list
         return []
 

@@ -416,18 +416,20 @@
                     throw new Error(`Failed to parse JSON: ${parseError.message}`);
                 }
                 
+                // Extract settings from the 'message' property
+                const settings = config.message || {};
                 console.log('Parsed config:', config);
                 
-                if (!config) {
-                    console.error('Config is null or undefined');
+                if (!settings) {
+                    console.error('Settings are null or undefined');
                     throw new Error('Received empty configuration');
                 }
                 
-                // Ensure paths object exists
-                const paths = config.paths || {};
-                const models = config.models || {};
-                const app = config.app || {};
-                const frameworks = config.frameworks || {};
+                // Ensure section objects exist
+                const paths = settings.paths || {};
+                const models = settings.models || {};
+                const app = settings.app || {};
+                const frameworks = settings.frameworks || {};
                 const ollama = frameworks.ollama || {};
                 const huggingface = frameworks.huggingface || {};
                 
@@ -449,9 +451,9 @@
                 document.getElementById('tool-repositories-container').innerHTML = '';
                 
                 // Add repositories
-                if (config.tool_repositories && config.tool_repositories.length > 0) {
-                    console.log('Adding repositories:', config.tool_repositories);
-                    config.tool_repositories.forEach(repo => {
+                if (settings.tool_repositories && settings.tool_repositories.length > 0) {
+                    console.log('Adding repositories:', settings.tool_repositories);
+                    settings.tool_repositories.forEach(repo => {
                         addRepository(repo);
                     });
                 } else {
